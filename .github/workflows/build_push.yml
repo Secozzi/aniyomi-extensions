@@ -19,6 +19,9 @@ env:
   CI_CHUNK_SIZE: 65
 
 jobs:
+  job-name:
+    permissions:
+      contents: write
   prepare:
     name: Prepare job
     runs-on: ubuntu-latest
