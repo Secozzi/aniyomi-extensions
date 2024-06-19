@@ -41,7 +41,7 @@ import javax.net.ssl.X509TrustManager
 class Jellyfin(private val suffix: String) : ConfigurableAnimeSource, AnimeHttpSource(), UnmeteredSource {
     override val baseUrl by lazy { getPrefBaseUrl() }
 
-    override val lang = "all"
+    override val lang = "allsdf"
 
     override val name by lazy { "Jellyfin (${getCustomLabel()})" }
 
