@@ -19,9 +19,6 @@ env:
   CI_CHUNK_SIZE: 65
 
 jobs:
-  job-name:
-    permissions:
-      contents: write
   prepare:
     name: Prepare job
     runs-on: ubuntu-latest
@@ -153,7 +150,7 @@ jobs:
       - name: Checkout repo branch
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
         with:
-          repository: aniyomiorg/aniyomi-extensions
+          repository: Secozzi/aniyomi-extensions
           token: ${{ secrets.ANIYOMIORG_BOT_PAT }}
           ref: repo
           path: repo
