@@ -30,6 +30,12 @@ jobs:
         with:
           ref: master
           token: ${{ secrets.ANIYOMIORG_BOT_PAT }}
+          
+      - name: Testing
+        run: |
+          cd repo
+          pwd
+
 
       - name: Find lib changes
         id: modified-libs
