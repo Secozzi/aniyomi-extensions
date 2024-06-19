@@ -11,8 +11,8 @@ VERSION_STR = "VersionCode ="
 VERSION_REGEX = re.compile(f"{VERSION_STR} (\\d+)")
 BUMPED_FILES: list[Path] = []
 
-BOT_EMAIL = "aniyomi-bot@aniyomi.org"
-BOT_NAME = "aniyomi-bot[bot]"
+BOT_EMAIL = "action@github.com"
+BOT_NAME = "GitHub Action"
 
 def has_match(query: str, file: Path) -> tuple[Path, bool]:
     return (file, query in file.read_text())

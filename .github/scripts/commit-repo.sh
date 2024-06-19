@@ -2,8 +2,8 @@
 set -e
 
 rsync -a --delete --exclude .git --exclude .gitignore ../master/repo/ .
-git config --global user.email "aniyomi-bot@aniyomi.org"
-git config --global user.name "aniyomi-bot[bot]"
+git config --global user.email "action@github.com"
+git config --global user.name "GitHub Action"
 git status
 if [ -n "$(git status --porcelain)" ]; then
     git add .
