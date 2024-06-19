@@ -158,11 +158,6 @@ jobs:
           ref: repo
           path: repo
           
-      - name: Testing
-        run: |
-          cd repo
-          pwd
-          
       - name: Deploy repo
         run: |
           cd repo

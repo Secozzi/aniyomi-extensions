@@ -69,6 +69,9 @@ jobs:
         uses: gradle/actions/setup-gradle@417ae3ccd767c252f5661f1ace9f835f9654f2b5 # v3
         with:
           cache-read-only: true
+          
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
       - name: Build extensions (chunk ${{ matrix.chunk }})
         env:
