@@ -13,7 +13,7 @@ Extension sources can be downloaded, installed, and uninstalled via the main Ani
 
 ## Downloads
 
-If you prefer to directly download the APK files, they are available via https://aniyomi.org/extensions/ or directly in this GitHub repository in the [`repo` branch](https://github.com/aniyomiorg/aniyomi-extensions/tree/repo/apk).
+If yous prefer to directly download the APK files, they are available via https://aniyomi.org/extensions/ or directly in this GitHub repository in the [`repo` branch](https://github.com/aniyomiorg/aniyomi-extensions/tree/repo/apk).
 
 # Requests
 
