@@ -7,7 +7,7 @@ git config --global user.name "aniyomi-bot[bot]"
 git status
 if [ -n "$(git status --porcelain)" ]; then
     git add .
-    git commit -S -m "Update extensions repo"
+    git commit -m "Update extensions repo"
     git push
 
     # Purge cached index on jsDelivr

@@ -40,14 +40,6 @@ jobs:
           files_separator: " "
           safe_output: false
 
-      - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@01dd5d3ca463c7f10f7f4f7b4f177225ac661ee4 # v6.1.0
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          git_user_signingkey: true
-          git_commit_gpgsign: true
-
         # This step is going to commit, but this will not trigger another workflow.
       - name: Bump extensions that uses a modified lib
         if: steps.modified-libs.outputs.any_changed == 'true'
@@ -113,7 +105,7 @@ jobs:
 
       - name: Upload APKs (chunk ${{ matrix.chunk }})
         uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4
-        if: "github.repository == 'aniyomiorg/aniyomi-extensions'"
+        if: "github.repository == 'Secozzi/aniyomi-extensions'"
         with:
           name: "individual-apks-${{ matrix.chunk }}"
           path: "**/*.apk"
@@ -126,7 +118,7 @@ jobs:
     name: Publish repo
     needs:
       - build_individual
-    if: "github.repository == 'aniyomiorg/aniyomi-extensions'"
+    if: "github.repository == 'Secozzi/aniyomi-extensions'"
     runs-on: ubuntu-latest
     steps:
       - name: Download APK artifacts
@@ -162,15 +154,6 @@ jobs:
           token: ${{ secrets.ANIYOMIORG_BOT_PAT }}
           ref: repo
           path: repo
-
-      - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@01dd5d3ca463c7f10f7f4f7b4f177225ac661ee4 # v6.1.0
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          git_user_signingkey: true
-          git_commit_gpgsign: true
-          workdir: repo
 
       - name: Deploy repo
         run: |
