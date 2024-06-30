@@ -100,7 +100,6 @@ index_min_data.sort(key=lambda x: x["pkg"])
 
 with (REPO_DIR / "index.json").open("w", encoding="utf-8") as f:
     index_data_str = json.dumps(index_data, ensure_ascii=False, indent=2)
-
     print(index_data_str)
     f.write(index_data_str)
 
