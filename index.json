@@ -2,10 +2,10 @@
   {
     "name": "Aniyomi: Jellyfin",
     "pkg": "eu.kanade.tachiyomi.animeextension.all.jellyfin",
-    "apk": "aniyomi-all.jellyfin-v14.15.apk",
+    "apk": "aniyomi-all.jellyfin-v14.18.apk",
     "lang": "all",
-    "code": 15,
-    "version": "14.15",
+    "code": 18,
+    "version": "14.18",
     "nsfw": 0,
     "hasReadme": 0,
     "hasChangelog": 0,
@@ -14,21 +14,21 @@
         "name": "Jellyfin (1)",
         "lang": "all",
         "id": "1100359934660540567",
-        "baseUrl": "http://127.0.0.1:8096",
+        "baseUrl": "",
         "versionId": 1
       },
       {
         "name": "Jellyfin (2)",
         "lang": "all",
         "id": "5716273013801838310",
-        "baseUrl": "http://127.0.0.1:8096",
+        "baseUrl": "",
         "versionId": 1
       },
       {
         "name": "Jellyfin (3)",
         "lang": "all",
         "id": "7066619062139039107",
-        "baseUrl": "http://127.0.0.1:8096",
+        "baseUrl": "",
         "versionId": 1
       }
     ]
@@ -36,10 +36,10 @@
   {
     "name": "Aniyomi: AniList",
     "pkg": "eu.kanade.tachiyomi.animeextension.en.anilist",
-    "apk": "aniyomi-en.anilist-v14.3.apk",
+    "apk": "aniyomi-en.anilist-v14.6.apk",
     "lang": "en",
-    "code": 3,
-    "version": "14.3",
+    "code": 6,
+    "version": "14.6",
     "nsfw": 0,
     "hasReadme": 0,
     "hasChangelog": 0,
