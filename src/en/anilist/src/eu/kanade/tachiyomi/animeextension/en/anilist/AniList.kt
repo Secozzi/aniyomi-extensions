@@ -25,11 +25,15 @@ import kotlinx.serialization.json.putJsonArray
 import okhttp3.FormBody
 import okhttp3.Request
 import okhttp3.Response
+import tachiyomi.domain.items.episode.service.EpisodeRecognition
+import tachiyomi.source.local.io.anime.LocalAnimeSourceFileSystem
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.text.SimpleDateFormat
 import java.util.Locale
+import kotlin.math.ceil
+import kotlin.math.floor
 
 class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
 
@@ -82,8 +86,9 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
         return POST(apiUrl, body = body)
     }
 
-    override fun popularAnimeRequest(page: Int): Request =
-        createSortRequest("TRENDING_DESC", page)
+    override fun popularAnimeRequest(page: Int): Request {
+        return createSortRequest("TRENDING_DESC", page)
+    }
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val titleLang = preferences.titleLang
@@ -241,6 +246,8 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
 
     // ============================== Episodes ==============================
 
+    private val fileSystem: LocalAnimeSourceFileSystem by injectLazy()
+
     override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
         val currentTime = System.currentTimeMillis() / 1000L
         val lastRefresh = lastRefreshed.getOrDefault(anime.url, 0L)
@@ -249,7 +256,7 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
             episodeListMap.getOrDefault(anime.url, emptyList())
         } else {
             super.getEpisodeList(anime)
-        }
+        }.let { addLocalEntries(anime, it) }
 
         episodeListMap[anime.url] = episodeList
         return episodeList
@@ -404,11 +411,71 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
             .getOrNull() ?: 0L
     }
 
+    // Local stuff
+
+    fun addLocalEntries(
+        anime: SAnime,
+        episodeList: List<SEpisode>,
+    ): List<SEpisode> {
+        val sanitizedTitle = buildValidFilename(anime.title)
+
+        val selectedAnime = fileSystem.getBaseDirectory()?.listFiles().orEmpty().toList()
+            .filter { it.isDirectory && !it.name.orEmpty().startsWith('.') }
+            .distinctBy { it.name }
+            .firstOrNull {
+                val name = it.name.orEmpty()
+                name.takeWhile(Char::isDigit) == anime.url || name.equals(sanitizedTitle, true)
+            } ?: return episodeList
+
+        val localEpisodeList = fileSystem.getFilesInAnimeDirectory(selectedAnime.name.orEmpty())
+            .filter { it.isFile && it.name.orEmpty().lowercase().substringAfterLast(".") in VALID_EXTENSIONS }
+            .mapIndexed { index, file ->
+                val epNumber = EpisodeRecognition.parseEpisodeNumber(anime.title, file.name.orEmpty().trimInfo()).takeUnless {
+                    it.equalsTo(-1F)
+                } ?: index.toDouble()
+                Pair(file, epNumber)
+            }
+
+        return episodeList.map { ep ->
+            val localEntry = localEpisodeList.firstOrNull { it.second.equalsTo(ep.episode_number) }
+                ?: return@map ep
+
+            val epNumber = localEntry.second.toFloat().let { number ->
+                if (ceil(number) == floor(number)) number.toInt() else number
+            }
+
+            ep.apply {
+                scanlator = "Episode $epNumber"
+                url = "${selectedAnime.name.orEmpty()}/${localEntry.first.name.orEmpty()}"
+            }
+        }
+    }
+
     // ============================ Video Links =============================
 
-    override fun videoListRequest(episode: SEpisode): Request = throw Exception("Why")
+    override suspend fun getVideoList(episode: SEpisode): List<Video> {
+        if (!episode.url.contains("/")) return emptyList()
 
-    override fun videoListParse(response: Response): List<Video> = throw Exception("No videos")
+        val (animeDirName, episodeName) = episode.url.split('/', limit = 2)
+        val videoFile = fileSystem.getBaseDirectory()
+            ?.findFile(animeDirName)
+            ?.findFile(episodeName)
+        val videoUri = videoFile!!.uri
+
+        val video = Video(
+            videoUri.toString(),
+            "Local source: ${episode.url}",
+            videoUri.toString(),
+            videoUri,
+        )
+        return listOf(video)
+    }
+
+    override fun videoListRequest(episode: SEpisode): Request =
+        throw UnsupportedOperationException()
+
+    override fun videoListParse(response: Response): List<Video> =
+        throw UnsupportedOperationException()
 
     // ============================= Utilities ==============================
 
