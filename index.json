@@ -36,10 +36,10 @@
   {
     "name": "Aniyomi: AniList",
     "pkg": "eu.kanade.tachiyomi.animeextension.en.anilist",
-    "apk": "aniyomi-en.anilist-v14.6.apk",
+    "apk": "aniyomi-en.anilist-v14.7.apk",
     "lang": "en",
-    "code": 6,
-    "version": "14.6",
+    "code": 7,
+    "version": "14.7",
     "nsfw": 0,
     "hasReadme": 0,
     "hasChangelog": 0,
