@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.animeextension.en.anilist
 
 import android.app.Application
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
@@ -14,7 +15,7 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
-import eu.kanade.tachiyomi.util.asJsoup
+import eu.kanade.tachiyomi.network.interceptor.rateLimitHost
 import eu.kanade.tachiyomi.util.parseAs
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -23,14 +24,13 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import okhttp3.FormBody
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import tachiyomi.source.local.io.anime.LocalAnimeSourceFileSystem
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import java.text.SimpleDateFormat
-import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.floor
 
@@ -46,7 +46,9 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
 
     override val supportsLatest = true
 
-    override val client = network.client
+    override val client = network.client.newBuilder()
+        .rateLimitHost("https://api.jikan.moe".toHttpUrl(), 1)
+        .build()
 
     private val json: Json by injectLazy()
 
@@ -91,7 +93,7 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val titleLang = preferences.titleLang
-        val page = response.parseAs<PagesResponse>().data.Page
+        val page = response.parseAs<PagesResponse>().data.page
         val hasNextPage = page.pageInfo.hasNextPage
         val animeList = page.media.map { it.toSAnime(titleLang) }
 
@@ -100,15 +102,18 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
 
     // =============================== Latest ===============================
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        createSortRequest("START_DATE_DESC", page, Pair("status", "RELEASING"))
+    override fun latestUpdatesRequest(page: Int): Request {
+        return createSortRequest("START_DATE_DESC", page, Pair("status", "RELEASING"))
+    }
 
-    override fun latestUpdatesParse(response: Response): AnimesPage = popularAnimeParse(response)
+    override fun latestUpdatesParse(response: Response): AnimesPage {
+        return popularAnimeParse(response)
+    }
 
     // =============================== Search ===============================
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        val params = AniListFilters.getSearchParameters(filters)
+        val params = Filters.getSearchParameters(filters)
 
         val variablesObject = buildJsonObject {
             put("page", page)
@@ -158,11 +163,15 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
         return POST(apiUrl, body = body)
     }
 
-    override fun searchAnimeParse(response: Response): AnimesPage = popularAnimeParse(response)
+    override fun searchAnimeParse(response: Response): AnimesPage {
+        return popularAnimeParse(response)
+    }
 
     // ============================== Filters ===============================
 
-    override fun getFilterList(): AnimeFilterList = AniListFilters.FILTER_LIST
+    override fun getFilterList(): AnimeFilterList {
+        return Filters.FILTER_LIST
+    }
 
     // =========================== Anime Details ============================
 
@@ -212,7 +221,7 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
 
     override fun animeDetailsParse(response: Response): SAnime {
         val titleLang = preferences.titleLang
-        val animeData = response.parseAs<DetailsResponse>().data.Media
+        val animeData = response.parseAs<DetailsResponse>().data.media
         val anime = animeData.toSAnime(titleLang)
 
         if (currentAnime != anime.url) {
@@ -220,23 +229,18 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
             val type = if (animeData.format == "MOVIE") "movies" else "tv"
 
             val data = mappings.firstOrNull {
-                it.anilist_id == anime.url.toInt()
+                it.anilistId == anime.url.toInt()
             }
-            val malId = data?.mal_id?.toString()
-            val tvdbId = data?.thetvdb_id?.toString()
+            val malId = data?.malId?.toString()
+            val tvdbId = data?.thetvdbId?.toString()
 
             coverList = buildList {
                 add(anime.thumbnail_url ?: "")
-                malId?.let {
-                    addAll(coverProviders.getMALCovers(malId))
-                }
-                tvdbId?.let {
-                    addAll(coverProviders.getFanartCovers(tvdbId, type))
-                }
+                malId?.let { addAll(coverProviders.getMALCovers(malId)) }
+                tvdbId?.let { addAll(coverProviders.getFanartCovers(tvdbId, type)) }
             }.filter { it.isNotEmpty() }
-            if (currentAnime.isNotEmpty()) {
-                currentAnime = anime.url
-            }
+
+            currentAnime = anime.url
             coverIndex = 0
         }
 
@@ -277,32 +281,41 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
     }
 
     override fun episodeListParse(response: Response): List<SEpisode> {
-        val data = response.parseAs<AnilistToMalResponse>().data.Media
+        val data = response.parseAs<AnilistToMalResponse>().data.media
+        if (data.status == "NOT_YET_RELEASED") {
+            return emptyList()
+        }
+
         val malId = data.idMal
         val anilistId = data.id
 
-        val episodeData = client.newCall(
-            anilistEpisodeRequest(anilistId),
-        ).execute().parseAs<AniListEpisodeResponse>().data.Media
-        val episodeCount = episodeData.nextAiringEpisode?.let { it.episode - 1 } ?: episodeData.episodes ?: 0
+        val episodeData = client.newCall(anilistEpisodeRequest(anilistId)).execute()
+            .parseAs<AniListEpisodeResponse>().data.media
+        val episodeCount = episodeData.nextAiringEpisode?.episode?.minus(1)
+            ?: episodeData.episodes ?: 0
 
         if (malId != null) {
-            val episodeList = runCatching {
+            val episodeList = try {
                 getFromMal(malId, episodeCount)
-            }.getOrNull()
+            } catch (e: Exception) {
+                Log.e("Anilist-Ext", "Failed to get episodes from mal: ${e.message}")
+                null
+            }
 
             if (episodeList != null) {
                 return episodeList
             }
         }
 
-        return (1..episodeCount).map {
+        return List(episodeCount) {
+            val epNumber = it + 1
+
             SEpisode.create().apply {
-                name = "Episode $it"
-                episode_number = it.toFloat()
-                url = "$it"
+                name = "Episode $epNumber"
+                episode_number = epNumber.toFloat()
+                url = "$epNumber"
             }
-        }
+        }.reversed()
     }
 
     private fun anilistEpisodeRequest(anilistId: Int): Request {
@@ -320,76 +333,54 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
         return POST(apiUrl, body = body)
     }
 
-    private fun getFromMal(id: Int, episodeCount: Int): List<SEpisode> {
-        val docHeaders = headers.newBuilder().apply {
-            add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-            add("Host", "myanimelist.net")
-        }.build()
+    private fun getSingleEpisodeFromMal(malId: Int): List<SEpisode> {
+        val animeData = client.newCall(
+            GET("https://api.jikan.moe/v4/anime/$malId", headers),
+        ).execute().parseAs<JikanAnimeDto>().data
 
-        val document = client.newCall(
-            GET("https://myanimelist.net/anime/$id", headers = docHeaders),
-        ).execute().use { it.asJsoup() }
+        return listOf(
+            SEpisode.create().apply {
+                name = "Episode 1"
+                episode_number = 1F
+                date_upload = parseDate(animeData.aired.from)
+                url = "1"
+            },
+        )
+    }
 
-        val episodesElement = document.selectFirst("div#horiznav_nav > ul > li:has(a:matchesWholeOwnText(Episodes))")
-        if (episodesElement == null) {
-            val airedOn = document.selectFirst("div.spaceit_pad:has(>span:matchesWholeOwnText(Aired:))")?.let {
-                parseDate(it.ownText().trim())
-            } ?: -1L
-            return listOf(
-                SEpisode.create().apply {
-                    name = "Episode 1"
-                    episode_number = 1F
-                    date_upload = airedOn
-                    url = "1"
-                },
-            )
-        }
-        val episodesHeader = docHeaders.newBuilder().apply {
-            add("Referer", "https://myanimelist.net/anime/$id")
-        }.build()
-
-        var episodesUrl = episodesElement.selectFirst("a")!!.attr("abs:href")
-        var hasNextPage = true
-        val episodeList = mutableListOf<SEpisode>()
+    private fun getFromMal(malId: Int, episodeCount: Int): List<SEpisode> {
         val markFillers = preferences.markFiller
+        val episodeList = mutableListOf<SEpisode>()
 
+        var hasNextPage = true
+        var page = 1
         while (hasNextPage) {
-            Thread.sleep(1000)
+            val data = client.newCall(
+                GET("https://api.jikan.moe/v4/anime/$malId/episodes?page=$page", headers),
+            ).execute().parseAs<JikanEpisodesDto>()
 
-            val episodeDocument = client.newCall(
-                GET(episodesUrl, headers = episodesHeader),
-            ).execute().use { it.asJsoup() }
+            if (data.pagination.lastPage == 1 && data.data.isEmpty()) {
+                return getSingleEpisodeFromMal(malId)
+            }
 
             episodeList.addAll(
-                episodeDocument.select("table.episode_list tr.episode-list-data").map {
-                    val number = it.selectFirst("td.episode-number[data-raw]")!!.attr("data-raw").toInt()
-                    val airedOn = it.selectFirst("td.episode-aired")?.let {
-                        parseDate(it.ownText().trim())
-                    } ?: -1L
-                    val epName = it.selectFirst("td.episode-title a")?.ownText()
-                    val fullName = epName?.let { "Ep. $number - $epName" } ?: "Episode $number"
-                    val scanlatorText = if (markFillers) {
-                        it.selectFirst(".episode-title > span:containsWholeText(Filler)")?.let { "Filler Episode" }
-                    } else {
-                        null
-                    }
+                data.data.map { ep ->
+                    val airedOn = ep.aired?.let { parseDate(it) } ?: -1L
+                    val fullName = ep.title?.let { "Ep. ${ep.number} - $it" } ?: "Episode ${ep.number}"
+                    val scanlatorText = if (markFillers && ep.filler) "Filler episode" else null
 
                     SEpisode.create().apply {
                         date_upload = airedOn
-                        episode_number = number.toFloat()
-                        url = "$number"
+                        episode_number = ep.number.toFloat()
+                        url = ep.number.toString()
                         name = SANITY_REGEX.replace(fullName) { m -> m.groupValues[1] }
                         scanlator = scanlatorText
                     }
                 },
             )
 
-            val nextPageElement = episodeDocument.selectFirst("div.pagination > a.link.current + a")
-            if (nextPageElement == null) {
-                hasNextPage = false
-            } else {
-                episodesUrl = nextPageElement.attr("abs:href")
-            }
+            hasNextPage = data.pagination.hasNextPage
+            page++
         }
 
         (episodeList.size + 1..episodeCount).forEach {
@@ -403,11 +394,6 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
         }
 
         return episodeList.filter { it.episode_number <= episodeCount }.sortedBy { -it.episode_number }
-    }
-
-    private fun parseDate(dateStr: String): Long {
-        return runCatching { DATE_FORMATTER.parse(dateStr)?.time }
-            .getOrNull() ?: 0L
     }
 
     // Local stuff
@@ -479,10 +465,6 @@ class AniList : ConfigurableAnimeSource, AnimeHttpSource() {
     // ============================= Utilities ==============================
 
     companion object {
-        private val DATE_FORMATTER by lazy {
-            SimpleDateFormat("MMM dd, yyyy", Locale.ENGLISH)
-        }
-
         private val SANITY_REGEX by lazy { Regex("""^Ep. \d+ - (Episode \d+)${'$'}""") }
 
         private const val PER_PAGE = 20
