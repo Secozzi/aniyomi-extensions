@@ -61,8 +61,6 @@ class Stremio : ConfigurableAnimeSource, AnimeHttpSource() {
     // ============================== Popular ===============================
 
     override suspend fun getPopularAnime(page: Int): AnimesPage {
-        Log.i("SOMETHING-addons", addonManager.addons.joinToString("\n") { it.toString() })
-
         val popularCatalog = addonManager.addons.firstNotNullOfOrNull { addon ->
             addon.manifest.catalogs.firstOrNull { catalog ->
                 catalog.extra.orEmpty().none { it.isRequired }
