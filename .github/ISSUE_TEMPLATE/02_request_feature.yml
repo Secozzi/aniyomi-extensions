@@ -1,13 +1,7 @@
-name: ❌ Dead source report
-description: Source is down and website is closed
-labels: [Source is down]
+name: ⭐ Feature request
+description: Suggest a feature to improve an existing source
+labels: [Feature request]
 body:
-
-  - type: markdown
-    attributes:
-      value: |
-        ### Notice
-        If you have a lot of dead sources to report, please go back and submit a single meta request.
 
   - type: input
     id: source
@@ -16,7 +10,7 @@ body:
       description: |
         You can find the extension name in **Browse → Extensions**.
       placeholder: |
-        Example: "NotRealSource"
+        Example: "Jellyfin"
     validations:
       required: true
 
@@ -29,12 +23,14 @@ body:
     validations:
       required: true
 
-  - type: input
-    id: link
+  - type: textarea
+    id: feature-description
     attributes:
-      label: Source link
+      label: Describe your suggested feature
+      description: How can an existing extension be improved?
       placeholder: |
-        Example: "https://notrealsource.org"
+        Example:
+          "It should work like this..."
     validations:
       required: true
 
@@ -53,11 +49,11 @@ body:
       options:
         - label: I have searched the existing issues and this is a new ticket, **NOT** a duplicate or related to another open or closed issue.
           required: true
-        - label: I have written a title with source name.
+        - label: I have written a short but informative title.
           required: true
-        - label: I have updated all installed extensions.
+        - label: If this is an issue with the app itself, I should be opening an issue in the [app repository](https://github.com/aniyomiorg/aniyomi/issues/new/choose).
           required: true
-        - label: I have opened WebView and checked that the source website is down.
+        - label: I have updated the app to version **[0.16.3.4](https://github.com/aniyomiorg/aniyomi/releases/latest)**.
           required: true
         - label: I will fill out all of the requested information in this form.
           required: true
