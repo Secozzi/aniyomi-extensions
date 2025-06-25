@@ -29,7 +29,6 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           ref: master
-          token: ${{ secrets.ANIYOMIORG_BOT_PAT }}
 
       - name: Validate Gradle Wrapper
         uses: gradle/actions/wrapper-validation@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
@@ -157,7 +156,6 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           repository: Secozzi/aniyomi-extensions
-          token: ${{ secrets.ANIYOMIORG_BOT_PAT }}
           ref: repo
           path: repo
           
