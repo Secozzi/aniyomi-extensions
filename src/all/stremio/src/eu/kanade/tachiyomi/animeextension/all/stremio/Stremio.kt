@@ -587,7 +587,7 @@ class Stremio : ConfigurableAnimeSource, AnimeHttpSource() {
         private const val LIBRARY_PAGE_SIZE = 100
 
         private const val WEBUI_URL_KEY = "host_url"
-        private const val WEBUI_URL_DEFAULT = "https://app.strem.io/shell-v4.4"
+        private const val WEBUI_URL_DEFAULT = ""
 
         private const val SERVER_URL_KEY = "server_url"
         private const val SERVER_URL_DEFAULT = ""
