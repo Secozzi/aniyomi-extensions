@@ -1,6 +1,7 @@
-package eu.kanade.tachiyomi.animeextension.all.jellyfin
+@file:Suppress("unused")
 
-import android.app.Application
+package extensions.utils
+
 import android.content.SharedPreferences
 import android.text.Editable
 import android.text.TextWatcher
@@ -11,34 +12,44 @@ import androidx.preference.ListPreference
 import androidx.preference.MultiSelectListPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
-import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
-private const val RESTART_MESSAGE = "Restart the app to apply the new setting."
+// From https://al-e-shevelev.medium.com/mutable-lazy-in-kotlin-14233bed116d
+class LazyMutable<T>(
+    val initializer: () -> T,
+) : ReadWriteProperty<Any?, T> {
+    private object UninitializedValue
 
-/**
- * Returns the [SharedPreferences] associated with current source id
- */
-inline fun AnimeHttpSource.getPreferences(
-    migration: SharedPreferences.() -> Unit = { },
-): SharedPreferences = getPreferences(id).also(migration)
+    @Volatile private var propValue: Any? = UninitializedValue
 
-/**
- * Lazily returns the [SharedPreferences] associated with current source id
- */
-inline fun AnimeHttpSource.getPreferencesLazy(
-    crossinline migration: SharedPreferences.() -> Unit = { },
-) = lazy { getPreferences(migration) }
+    @Suppress("UNCHECKED_CAST")
+    override fun getValue(thisRef: Any?, property: KProperty<*>): T {
+        val localValue = propValue
 
-/**
- * Returns the [SharedPreferences] associated with passed source id
- */
-@Suppress("NOTHING_TO_INLINE")
-inline fun getPreferences(sourceId: Long): SharedPreferences =
-    Injekt.get<Application>().getSharedPreferences("source_$sourceId", 0x0000)
+        if (localValue != UninitializedValue) {
+            return localValue as T
+        }
+
+        return synchronized(this) {
+            val localValue2 = propValue
+
+            if (localValue2 != UninitializedValue) {
+                localValue2 as T
+            } else {
+                val initializedValue = initializer()
+                propValue = initializedValue
+                initializedValue
+            }
+        }
+    }
+
+    override fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
+        synchronized(this) {
+            propValue = value
+        }
+    }
+}
 
 /**
  * Delegate to lazily read from preferences, as well as writing to preferences.
@@ -52,6 +63,8 @@ class LazyMutablePreference<T>(
     val key: String,
     val default: T,
 ) : ReadWriteProperty<Any?, T> {
+    // Preferences doesn't really need a lazy delegate, but since we're making
+    // it a delegate we might as well.
     private object UninitializedValue
 
     @Volatile
@@ -116,6 +129,8 @@ class LazyMutablePreference<T>(
  */
 fun <T> SharedPreferences.delegate(key: String, default: T) =
     LazyMutablePreference(this, key, default)
+
+const val RESTART_MESSAGE = "Restart the app to apply the new setting."
 
 /**
  * Add an [EditTextPreference] preference to the screen

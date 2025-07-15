@@ -17,7 +17,6 @@ import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.LoginDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.MediaLibraryDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.PlaybackInfoDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.SessionDto
-import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.animesource.UnmeteredSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
@@ -25,8 +24,16 @@ import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
-import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.HttpException
+import extensions.utils.LazyMutable
+import extensions.utils.Source
+import extensions.utils.addEditTextPreference
+import extensions.utils.addListPreference
+import extensions.utils.addSetPreference
+import extensions.utils.addSwitchPreference
+import extensions.utils.delegate
+import extensions.utils.toJsonBody
+import extensions.utils.toRequestBody
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
@@ -37,24 +44,24 @@ import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Request
 import okhttp3.Response
 import org.apache.commons.text.StringSubstitutor
 import rx.Single
 import rx.schedulers.Schedulers
-import uy.kohesive.injekt.injectLazy
 import java.io.IOException
 import java.security.MessageDigest
 import kotlin.getValue
 
-class Jellyfin(private val suffix: String) : ConfigurableAnimeSource, AnimeHttpSource(), UnmeteredSource {
-    internal val preferences: SharedPreferences by getPreferencesLazy {
+@Suppress("SpellCheckingInspection")
+class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
+    override val migration: SharedPreferences.() -> Unit = {
         val quality = getString(PREF_QUALITY_KEY, PREF_QUALITY_DEFAULT)!!
         Constants.QUALITY_MIGRATION_MAP[quality]?.let {
             edit().putString(PREF_QUALITY_KEY, it.toString()).commit()
         }
     }
 
-    private val context: Application by injectLazy()
     private val deviceInfo by lazy { getDeviceInfo(context) }
     private val displayName by lazy { preferences.displayName.ifBlank { suffix } }
 
@@ -339,7 +346,7 @@ class Jellyfin(private val suffix: String) : ConfigurableAnimeSource, AnimeHttpS
             userId = preferences.userId,
             isPlayback = true,
             mediaSourceId = mediaSource.id!!,
-            maxStreamingBitrate = qualities.last().videoBitrate.toLong(),
+            maxStreamingBitrate = qualities.last().videoBitrate,
             audioStreamIndex = audioTrackIndex?.toString(),
             subtitleStreamIndex = subtitleTrackIndex?.toString(),
             alwaysBurnInSubtitleWhenTranscoding = preferences.burnSub,
@@ -471,7 +478,7 @@ class Jellyfin(private val suffix: String) : ConfigurableAnimeSource, AnimeHttpS
         val body = buildJsonObject {
             put("Username", username)
             put("Pw", password)
-        }.toBody()
+        }.toRequestBody()
 
         return try {
             val resp = client.post(
@@ -665,7 +672,7 @@ class Jellyfin(private val suffix: String) : ConfigurableAnimeSource, AnimeHttpS
     private val splitCollectionDelegate = preferences.delegate(PREF_SPLIT_COLLECTIONS_KEY, PREF_SPLIT_COLLECTIONS_DEFAULT)
     private val SharedPreferences.splitCollections by splitCollectionDelegate
 
-    private fun SharedPreferences.clearCredentials() {
+    private fun clearCredentials() {
         preferences.libraryList = "[]"
         preferences.selectedLibrary = MEDIA_LIBRARY_DEFAULT
         preferences.userId = ""
@@ -707,18 +714,19 @@ class Jellyfin(private val suffix: String) : ConfigurableAnimeSource, AnimeHttpS
                 mediaLibraryPref.entries = libraryList.map { it.name }.toTypedArray()
                 mediaLibraryPref.entryValues = libraryList.map { it.id }.toTypedArray()
             } else {
-                preferences.clearCredentials()
+                clearCredentials()
             }
         }
 
         fun logIn() {
             Single.fromCallable {
-                runBlocking(Dispatchers.IO) {
+                handler.post {
                     mediaLibraryPref.setEnabled(false)
                     mediaLibraryPref.summary = "Loading..."
+                    clearCredentials()
+                }
 
-                    preferences.clearCredentials()
-
+                runBlocking(Dispatchers.IO) {
                     val loginDto = authenticate(preferences.username, preferences.password)
 
                     preferences.userId = loginDto.sessionInfo.userId
@@ -744,7 +752,10 @@ class Jellyfin(private val suffix: String) : ConfigurableAnimeSource, AnimeHttpS
                         preferences.libraryList = JSON_INSTANCE.encodeToString<List<MediaLibraryDto>>(libraryList)
 
                         displayToast("Login successful")
-                        onCompleteLogin(true)
+
+                        handler.post {
+                            onCompleteLogin(true)
+                        }
                     },
                     { e ->
                         val message = when {
@@ -754,7 +765,9 @@ class Jellyfin(private val suffix: String) : ConfigurableAnimeSource, AnimeHttpS
 
                         Log.e(LOG_TAG, "Failed to login", e)
                         displayToast("Login failed: $message")
-                        onCompleteLogin(false)
+                        handler.post {
+                            onCompleteLogin(false)
+                        }
                     },
                 )
 
@@ -883,7 +896,6 @@ class Jellyfin(private val suffix: String) : ConfigurableAnimeSource, AnimeHttpS
             lazyDelegate = episodeTemplateDelegate,
         )
 
-        @Suppress("SpellCheckingInspection")
         screen.addSetPreference(
             key = PREF_EP_DETAILS_KEY,
             default = PREF_EP_DETAILS_DEFAULT,
@@ -970,18 +982,4 @@ class Jellyfin(private val suffix: String) : ConfigurableAnimeSource, AnimeHttpS
             lazyDelegate = splitCollectionDelegate,
         )
     }
-
-    // TODO(16): Remove with ext lib 16
-    override fun popularAnimeRequest(page: Int) = throw UnsupportedOperationException()
-    override fun popularAnimeParse(response: Response) = throw UnsupportedOperationException()
-    override fun latestUpdatesParse(response: Response) = throw UnsupportedOperationException()
-    override fun latestUpdatesRequest(page: Int) = throw UnsupportedOperationException()
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList) = throw UnsupportedOperationException()
-    override fun searchAnimeParse(response: Response) = throw UnsupportedOperationException()
-    override fun animeDetailsRequest(anime: SAnime) = throw UnsupportedOperationException()
-    override fun animeDetailsParse(response: Response) = throw UnsupportedOperationException()
-    override fun episodeListRequest(anime: SAnime) = throw UnsupportedOperationException()
-    override fun episodeListParse(response: Response) = throw UnsupportedOperationException()
-    override fun videoListRequest(episode: SEpisode) = throw UnsupportedOperationException()
-    override fun videoListParse(response: Response) = throw UnsupportedOperationException()
 }

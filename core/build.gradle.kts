@@ -1,5 +1,6 @@
 plugins {
     id("com.android.library")
+    kotlin("android")
 }
 
 android {
@@ -10,16 +11,23 @@ android {
         minSdk = AndroidConfig.minSdk
     }
 
-    sourceSets {
-        named("main") {
-            manifest.srcFile("AndroidManifest.xml")
-            res.setSrcDirs(listOf("res"))
-        }
+    buildFeatures {
+        resValues = false
+        shaders = false
     }
 
-    libraryVariants.all {
-        generateBuildConfigProvider?.configure {
-            enabled = false
-        }
+    kotlinOptions {
+        freeCompilerArgs += "-opt-in=kotlinx.serialization.ExperimentalSerializationApi"
     }
+
+    // sourceSets {
+    //     named("main") {
+    //         manifest.srcFile("AndroidManifest.xml")
+    //         res.setSrcDirs(listOf("res"))
+    //     }
+    // }
+}
+
+dependencies {
+    compileOnly(versionCatalogs.named("libs").findBundle("common").get())
 }

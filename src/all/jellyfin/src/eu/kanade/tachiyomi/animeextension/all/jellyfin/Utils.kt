@@ -1,42 +1,23 @@
 package eu.kanade.tachiyomi.animeextension.all.jellyfin
 
-import android.app.Application
-import android.os.Handler
-import android.os.Looper
-import android.widget.Toast
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.DeviceProfileDto
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.awaitSuccess
+import extensions.utils.parseAs
 import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.decodeFromStream
 import okhttp3.CacheControl
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import uy.kohesive.injekt.injectLazy
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit.MINUTES
-import kotlin.reflect.KProperty
-
-private val APP: Application by injectLazy()
-private val HANDLER by lazy { Handler(Looper.getMainLooper()) }
-
-fun displayToast(message: String, length: Int = Toast.LENGTH_SHORT) {
-    HANDLER.post {
-        Toast.makeText(APP, message, length).show()
-    }
-}
 
 val JSON_INSTANCE: Json = Json {
     isLenient = false
@@ -46,15 +27,7 @@ val JSON_INSTANCE: Json = Json {
 }
 
 inline fun <reified T> Response.parseAs(): T {
-    return JSON_INSTANCE.decodeFromStream(body.byteStream())
-}
-
-fun JsonObject.toBody(): RequestBody {
-    return JSON_INSTANCE.encodeToString(this).toJsonBody()
-}
-
-fun String.toJsonBody(): RequestBody {
-    return this.toRequestBody("application/json; charset=utf-8".toMediaType())
+    return parseAs(JSON_INSTANCE)
 }
 
 private val NEWLINE_REGEX = Regex("""\n""")
@@ -85,7 +58,6 @@ fun getAuthHeader(deviceInfo: Jellyfin.DeviceInfo, token: String? = null): Strin
         )
 }
 
-@Suppress("KotlinConstantConditions") // Kotlin, why
 fun Long.formatBytes(): String = when {
     this >= 1_000_000_000L -> "%.2f GB".format(this / 1_000_000_000.0)
     this >= 1_000_000L -> "%.2f MB".format(this / 1_000_000.0)
@@ -271,41 +243,6 @@ fun getDeviceProfile(
         ),
         subtitleProfiles = subtitleProfilesList,
     )
-}
-
-// From https://al-e-shevelev.medium.com/mutable-lazy-in-kotlin-14233bed116d
-@Suppress("unused")
-class LazyMutable<T>(val initializer: () -> T) {
-    private object UninitializedValue
-
-    @Volatile private var propValue: Any? = UninitializedValue
-
-    @Suppress("UNCHECKED_CAST")
-    operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
-        val localValue = propValue
-
-        if (localValue != UninitializedValue) {
-            return localValue as T
-        }
-
-        return synchronized(this) {
-            val localValue2 = propValue
-
-            if (localValue2 != UninitializedValue) {
-                localValue2 as T
-            } else {
-                val initializedValue = initializer()
-                propValue = initializedValue
-                initializedValue
-            }
-        }
-    }
-
-    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
-        synchronized(this) {
-            propValue = value
-        }
-    }
 }
 
 // TODO(16): Remove with ext lib 16
