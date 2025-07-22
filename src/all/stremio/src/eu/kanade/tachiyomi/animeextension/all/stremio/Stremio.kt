@@ -3,9 +3,7 @@ package eu.kanade.tachiyomi.animeextension.all.stremio
 import android.content.SharedPreferences
 import android.text.InputType
 import android.util.Log
-import android.widget.Toast
 import androidx.preference.PreferenceScreen
-import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.AddonManager
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonResource
@@ -20,12 +18,13 @@ import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.util.parallelCatchingFlatMap
 import extensions.utils.LazyMutable
-import extensions.utils.RESTART_MESSAGE
 import extensions.utils.Source
 import extensions.utils.addEditTextPreference
+import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
 import extensions.utils.firstInstance
 import extensions.utils.get
+import extensions.utils.getSwitchPreference
 import extensions.utils.parseAs
 import extensions.utils.post
 import extensions.utils.toRequestBody
@@ -38,7 +37,6 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.Response
 import org.apache.commons.text.StringSubstitutor
 import rx.Single
 import rx.schedulers.Schedulers
@@ -47,6 +45,12 @@ import kotlin.collections.orEmpty
 
 @Suppress("SpellCheckingInspection")
 class Stremio : Source() {
+    override val migration: SharedPreferences.() -> Unit = {
+        val addons = getString(ADDONS_KEY, ADDONS_DEFAULT)!!
+            .replace(" ", "\n")
+        edit().putString(ADDONS_KEY, addons).commit()
+    }
+
     override var baseUrl by LazyMutable { preferences.webUIUrl }
 
     override val lang = "all"
@@ -86,12 +90,6 @@ class Stremio : Source() {
             ),
         )
     }
-
-    // =============================== Latest ===============================
-
-    override fun latestUpdatesRequest(page: Int) = throw UnsupportedOperationException()
-
-    override fun latestUpdatesParse(response: Response) = throw UnsupportedOperationException()
 
     // =============================== Search ===============================
 
@@ -243,10 +241,6 @@ class Stremio : Source() {
     var catalogList: Array<Pair<String, CatalogDto>>? = null
 
     fun setCatalogList(addons: List<AddonDto>) {
-        if (catalogList != null) {
-            return
-        }
-
         catalogList = addons.flatMap { addon ->
             addon.manifest.catalogs.map { catalog ->
                 buildString {
@@ -568,22 +562,6 @@ class Stremio : Source() {
             }
     }
 
-    override fun List<Video>.sort(): List<Video> {
-        return this
-
-        /*
-        val quality = preferences.getQuality
-
-        return sortedWith(
-            compareBy(
-                { it.quality.contains(quality) },
-                { it.url.toInt() },
-            ),
-        ).reversed()
-
-         */
-    }
-
     // ============================= Utilities ==============================
 
     companion object {
@@ -628,7 +606,7 @@ class Stremio : Source() {
         |- {episodeNumber}: Episode number
         |- {seasonNumber}: Season number
         |- {description}: Episode description
-        |If you wish to place some text between curly brackets, place the escape character "${'$'}"
+        |If you wish to place some text between curly brackets, place the escape character "$"
         |before the opening curly bracket, e.g. ${'$'}{name}.
         """.trimMargin()
 
@@ -643,8 +621,7 @@ class Stremio : Source() {
 
     // ============================ Preferences =============================
 
-    private val SharedPreferences.addons by addonDelegate
-    private val SharedPreferences.authKey by authKeyDelegate
+    private var SharedPreferences.authKey by authKeyDelegate
 
     private val webUIDelegate = preferences.delegate(WEBUI_URL_KEY, WEBUI_URL_DEFAULT)
     private val SharedPreferences.webUIUrl by webUIDelegate
@@ -691,38 +668,32 @@ class Stremio : Source() {
                 "Press to log out"
             }
         }
-        val logOutPref = SwitchPreferenceCompat(screen.context).apply {
-            key = "_unused"
-            title = "Log out"
-            summary = logOutSummary(preferences.authKey)
-            setDefaultValue(false)
-            setEnabled(preferences.authKey.isNotBlank())
-            setOnPreferenceChangeListener { pref, _ ->
-                pref.setEnabled(false)
-                pref.summary = logOutSummary("")
+        val logOutPref = screen.getSwitchPreference(
+            key = "_unused",
+            default = false,
+            title = "Log out",
+            summary = logOutSummary(preferences.authKey),
+            restartRequired = true,
+            enabled = preferences.authKey.isNotBlank(),
+        ) { pref, _ ->
+            pref.setEnabled(false)
+            pref.summary = logOutSummary("")
 
-                preferences.clearCredentials()
-                preferences.clearLogin()
+            preferences.clearCredentials()
+            preferences.clearLogin()
 
-                Toast.makeText(screen.context, RESTART_MESSAGE, Toast.LENGTH_SHORT).show()
-
-                false
-            }
+            false
         }
 
         val getLibrarySummary: (String) -> String = { if (it.isBlank()) "Currently not logged in" else "Please keep disabled if not used to reduce number of requests" }
-        val getLibraryPref = SwitchPreferenceCompat(screen.context).apply {
-            key = PREF_FETCH_LIBRARY_KEY
-            title = "Fetch library"
-            summary = getLibrarySummary(preferences.authKey)
-            setDefaultValue(PREF_FETCH_LIBRARY_DEFAULT)
-            setEnabled(preferences.authKey.isNotBlank())
-
-            setOnPreferenceChangeListener { _, newValue ->
-                fetchLibraryDelegate.updateValue(newValue as Boolean)
-                true
-            }
-        }
+        val getLibraryPref = screen.getSwitchPreference(
+            key = PREF_FETCH_LIBRARY_KEY,
+            default = PREF_FETCH_LIBRARY_DEFAULT,
+            title = "Fetch library",
+            summary = getLibrarySummary(preferences.authKey),
+            enabled = preferences.authKey.isNotBlank(),
+            lazyDelegate = fetchLibraryDelegate,
+        )
 
         val webUiSummary: (String) -> String = { it.ifBlank { "WebUI url (used only for WebView)" } }
         screen.addEditTextPreference(
@@ -763,17 +734,17 @@ class Stremio : Source() {
             default = ADDONS_DEFAULT,
             title = "Addons",
             summary = "Manually specify addons, overrides addons from logged in user",
-            dialogMessage = "Separate manifest urls with a space",
-            restartRequired = true,
+            dialogMessage = "Separate manifest urls with a newline",
             validate = {
-                val urls = it.split(" ")
+                val urls = it.split("\n")
                 urls.all(isValidAddon)
             },
             validationMessage = {
-                val urls = it.split(" ")
+                val urls = it.split("\n")
                 val invalidUrl = urls.firstOrNull { url -> !isValidAddon(url) } ?: it
                 "'$invalidUrl' is not a valid stremio addon"
             },
+            lazyDelegate = addonDelegate,
         )
 
         fun onCompleteLogin(result: Boolean) {
@@ -781,6 +752,11 @@ class Stremio : Source() {
             logOutPref.summary = logOutSummary(if (result) "unused" else "")
             getLibraryPref.setEnabled(result)
             getLibraryPref.summary = getLibrarySummary(if (result) "unused" else "")
+
+            if (!result) {
+                preferences.clearCredentials()
+                preferences.clearLogin()
+            }
         }
 
         fun logIn() {
@@ -808,12 +784,9 @@ class Stremio : Source() {
                     { loginDto ->
                         val authKey = loginDto.result.authKey
 
-                        preferences.edit()
-                            .putString(AUTHKEY_KEY, authKey)
-                            .apply()
-
                         displayToast("Login successful")
                         handler.post {
+                            preferences.authKey = authKey
                             onCompleteLogin(true)
                         }
                     },
@@ -829,13 +802,14 @@ class Stremio : Source() {
 
         val emailSummary: (String) -> String = { it.ifBlank { "Log in with account (optional)" } }
         screen.addEditTextPreference(
+            key = EMAIL_KEY,
             title = "Email",
             default = EMAIL_DEFAULT,
             summary = emailSummary(preferences.email),
             getSummary = emailSummary,
             dialogMessage = "Email address",
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
-            key = EMAIL_KEY,
+            lazyDelegate = emailDelegate,
         ) {
             if (preferences.password.isNotBlank()) {
                 logIn()
@@ -844,12 +818,13 @@ class Stremio : Source() {
 
         val passwordSummary: (String) -> String = { if (it.isBlank()) "The user account password" else "•".repeat(it.length) }
         screen.addEditTextPreference(
+            key = PASSWORD_KEY,
             title = "Password",
             default = PASSWORD_DEFAULT,
             summary = passwordSummary(preferences.password),
             getSummary = passwordSummary,
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
-            key = PASSWORD_KEY,
+            lazyDelegate = passwordDelegate,
         ) {
             if (preferences.email.isNotBlank()) {
                 logIn()
@@ -872,6 +847,7 @@ class Stremio : Source() {
                 }
             },
             validationMessage = { "Invalid episode name format" },
+            lazyDelegate = nameTemplateDelegate,
         )
 
         screen.addEditTextPreference(
@@ -890,14 +866,16 @@ class Stremio : Source() {
                 }
             },
             validationMessage = { "Invalid scanlator format" },
+            lazyDelegate = scanlatorTemplateDelegate,
         )
 
-        SwitchPreferenceCompat(screen.context).apply {
-            key = PREF_SKIP_SEASON_0_KEY
-            title = "Skip season 0"
-            summary = "Filter out specials"
-            setDefaultValue(PREF_SKIP_SEASON_0_DEFAULT)
-        }.also(screen::addPreference)
+        screen.addSwitchPreference(
+            key = PREF_SKIP_SEASON_0_KEY,
+            default = PREF_SKIP_SEASON_0_DEFAULT,
+            title = "Skip season 0",
+            summary = "Filter out specials",
+            lazyDelegate = skipSeason0Delegate,
+        )
 
         screen.addPreference(logOutPref)
         screen.addPreference(getLibraryPref)

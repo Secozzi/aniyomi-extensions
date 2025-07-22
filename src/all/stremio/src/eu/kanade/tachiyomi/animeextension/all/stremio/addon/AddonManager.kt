@@ -16,14 +16,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import okhttp3.OkHttpClient
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
 
+@Suppress("SpellCheckingInspection")
 class AddonManager(
     addonDelegate: LazyMutablePreference<String>,
     authKeyDelegate: LazyMutablePreference<String>,
-    // private val client: OkHttpClient,
 ) : ReadOnlyProperty<Source, List<AddonDto>> {
     private val addonValue by addonDelegate
     private val authKeyValue by authKeyDelegate
@@ -51,23 +50,26 @@ class AddonManager(
                 }
             }
 
-            cachedAddons = addonValue
-            cachedAuthKey = authKeyValue
+            if (useAddons) {
+                cachedAddons = addonValue
+            } else {
+                cachedAuthKey = authKeyValue
+            }
         }
 
         return addons ?: emptyList()
     }
 
     private suspend fun getFromPref(thisRef: Source, addons: String): List<AddonDto> {
-        val urls = addons.split(" ")
+        val urls = addons.split("\n")
 
         return urls.parallelMapNotNull { url ->
             try {
-                val manifest = thisRef.client.get(
-                    url.replace("stremio://", "https://"),
-                ).parseAs<ManifestDto>()
+                val manifestUrl = url.replace("stremio://", "https://")
+                val manifest = thisRef.client.get(manifestUrl).parseAs<ManifestDto>()
+
                 AddonDto(
-                    transportUrl = url,
+                    transportUrl = manifestUrl,
                     manifest = manifest,
                 )
             } catch (_: Exception) {

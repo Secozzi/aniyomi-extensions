@@ -7,7 +7,6 @@ import android.os.Build
 import android.provider.Settings
 import android.text.InputType
 import android.util.Log
-import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animeextension.BuildConfig
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.ItemDto
@@ -32,6 +31,9 @@ import extensions.utils.addListPreference
 import extensions.utils.addSetPreference
 import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
+import extensions.utils.get
+import extensions.utils.getListPreference
+import extensions.utils.post
 import extensions.utils.toJsonBody
 import extensions.utils.toRequestBody
 import kotlinx.coroutines.Dispatchers
@@ -44,7 +46,6 @@ import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.Request
 import okhttp3.Response
 import org.apache.commons.text.StringSubstitutor
 import rx.Single
@@ -687,22 +688,17 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                 "Selected: %s"
             }
         }
-        val mediaLibraryPref = ListPreference(screen.context).apply {
-            val libraryList = JSON_INSTANCE.decodeFromString<List<MediaLibraryDto>>(preferences.libraryList)
-
-            key = MEDIA_LIBRARY_KEY
-            title = "Select media library"
-            summary = mediaLibrarySummary(preferences.apiKey)
-            entries = libraryList.map { it.name }.toTypedArray()
-            entryValues = libraryList.map { it.id }.toTypedArray()
-            setDefaultValue(MEDIA_LIBRARY_DEFAULT)
-            setEnabled(preferences.apiKey.isNotBlank())
-
-            setOnPreferenceChangeListener { _, newValue ->
-                selectedLibraryDelegate.updateValue(newValue as String)
-                true
-            }
-        }
+        val libraryList = JSON_INSTANCE.decodeFromString<List<MediaLibraryDto>>(preferences.libraryList)
+        val mediaLibraryPref = screen.getListPreference(
+            key = MEDIA_LIBRARY_KEY,
+            default = MEDIA_LIBRARY_DEFAULT,
+            title = "Select media library",
+            summary = mediaLibrarySummary(preferences.apiKey),
+            entries = libraryList.map { it.name },
+            entryValues = libraryList.map { it.id },
+            enabled = preferences.apiKey.isNotBlank(),
+            lazyDelegate = selectedLibraryDelegate,
+        )
 
         fun onCompleteLogin(result: Boolean) {
             mediaLibraryPref.setEnabled(result)
@@ -749,11 +745,10 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                             .filterNot { it.collectionType in LIBRARY_BLACKLIST }
                             .map { MediaLibraryDto(it.name, it.id) }
 
-                        preferences.libraryList = JSON_INSTANCE.encodeToString<List<MediaLibraryDto>>(libraryList)
-
                         displayToast("Login successful")
 
                         handler.post {
+                            preferences.libraryList = JSON_INSTANCE.encodeToString<List<MediaLibraryDto>>(libraryList)
                             onCompleteLogin(true)
                         }
                     },

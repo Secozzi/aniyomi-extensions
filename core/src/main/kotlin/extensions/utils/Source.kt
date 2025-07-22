@@ -7,11 +7,9 @@ import android.os.Looper
 import android.widget.Toast
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
-import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
-import okhttp3.Request
 import okhttp3.Response
 import uy.kohesive.injekt.injectLazy
 import kotlin.getValue
@@ -21,13 +19,13 @@ abstract class Source : ConfigurableAnimeSource, AnimeHttpSource() {
 
     protected open val migration: SharedPreferences.() -> Unit = {}
 
-    protected val preferences: SharedPreferences by lazy {
+    val preferences: SharedPreferences by lazy {
         context.getSharedPreferences("source_$id", 0x0000).also(migration)
     }
 
     protected val handler by lazy { Handler(Looper.getMainLooper()) }
 
-    protected open fun displayToast(message: String, length: Int = Toast.LENGTH_SHORT) {
+    protected fun displayToast(message: String, length: Int = Toast.LENGTH_SHORT) {
         handler.post {
             Toast.makeText(context, message, length).show()
         }
@@ -36,8 +34,8 @@ abstract class Source : ConfigurableAnimeSource, AnimeHttpSource() {
     // TODO: Remove with ext lib 16
     override fun popularAnimeRequest(page: Int) = throw UnsupportedOperationException()
     override fun popularAnimeParse(response: Response) = throw UnsupportedOperationException()
-    override fun latestUpdatesParse(response: Response) = throw UnsupportedOperationException()
     override fun latestUpdatesRequest(page: Int) = throw UnsupportedOperationException()
+    override fun latestUpdatesParse(response: Response) = throw UnsupportedOperationException()
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList) = throw UnsupportedOperationException()
     override fun searchAnimeParse(response: Response) = throw UnsupportedOperationException()
     override fun animeDetailsRequest(anime: SAnime) = throw UnsupportedOperationException()
