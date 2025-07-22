@@ -1,24 +1,10 @@
 package eu.kanade.tachiyomi.animeextension.all.jellyfin
 
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.DeviceProfileDto
-import extensions.utils.parseAs
 import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Response
 import java.net.URLEncoder
-
-val JSON_INSTANCE: Json = Json {
-    isLenient = false
-    ignoreUnknownKeys = true
-    allowSpecialFloatingPointValues = true
-    namingStrategy = PascalCaseToCamelCase
-}
-
-inline fun <reified T> Response.parseAs(): T {
-    return parseAs(JSON_INSTANCE)
-}
 
 private val NEWLINE_REGEX = Regex("""\n""")
 

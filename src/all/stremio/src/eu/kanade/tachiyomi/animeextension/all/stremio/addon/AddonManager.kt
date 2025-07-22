@@ -6,10 +6,10 @@ import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonResultDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.ManifestDto
 import eu.kanade.tachiyomi.util.parallelMapNotNull
-import eu.kanade.tachiyomi.util.parseAs
 import extensions.utils.LazyMutablePreference
 import extensions.utils.Source
 import extensions.utils.get
+import extensions.utils.parseAs
 import extensions.utils.post
 import extensions.utils.toRequestBody
 import kotlinx.coroutines.Dispatchers
@@ -66,12 +66,13 @@ class AddonManager(
         return urls.parallelMapNotNull { url ->
             try {
                 val manifestUrl = url.replace("stremio://", "https://")
-                val manifest = thisRef.client.get(manifestUrl).parseAs<ManifestDto>()
-
-                AddonDto(
-                    transportUrl = manifestUrl,
-                    manifest = manifest,
-                )
+                with(thisRef) {
+                    val manifest = thisRef.client.get(manifestUrl).parseAs<ManifestDto>()
+                    AddonDto(
+                        transportUrl = manifestUrl,
+                        manifest = manifest,
+                    )
+                }
             } catch (_: Exception) {
                 null
             }
@@ -79,13 +80,15 @@ class AddonManager(
     }
 
     private suspend fun getFromUser(thisRef: Source, authKey: String): List<AddonDto> {
-        val body = buildJsonObject {
-            put("authKey", authKey)
-            put("type", "AddonCollectionGet")
-            put("update", true)
-        }.toRequestBody()
+        return with(thisRef) {
+            val body = buildJsonObject {
+                put("authKey", authKey)
+                put("type", "AddonCollectionGet")
+                put("update", true)
+            }.toRequestBody()
 
-        return thisRef.client.post("${Stremio.API_URL}/api/addonCollectionGet", body = body)
-            .parseAs<ResultDto<AddonResultDto>>().result.addons
+            thisRef.client.post("${Stremio.API_URL}/api/addonCollectionGet", body = body)
+                .parseAs<ResultDto<AddonResultDto>>().result.addons
+        }
     }
 }

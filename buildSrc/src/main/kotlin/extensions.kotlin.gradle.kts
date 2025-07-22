@@ -8,6 +8,7 @@ kotlin {
 
     compilerOptions {
         freeCompilerArgs.addAll(
+            "-Xcontext-parameters",
             "-Xmulti-dollar-interpolation",
             "-Xjvm-default=all-compatibility",
             "-opt-in=kotlinx.serialization.ExperimentalSerializationApi",

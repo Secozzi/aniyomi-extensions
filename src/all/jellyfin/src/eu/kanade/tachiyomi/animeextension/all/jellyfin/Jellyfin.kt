@@ -33,11 +33,13 @@ import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
 import extensions.utils.get
 import extensions.utils.getListPreference
+import extensions.utils.parseAs
 import extensions.utils.post
 import extensions.utils.toJsonBody
 import extensions.utils.toRequestBody
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Dns
@@ -59,6 +61,15 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         val quality = getString(PREF_QUALITY_KEY, PREF_QUALITY_DEFAULT)!!
         Constants.QUALITY_MIGRATION_MAP[quality]?.let {
             edit().putString(PREF_QUALITY_KEY, it.toString()).commit()
+        }
+    }
+
+    override val json: Json by lazy {
+        Json {
+            isLenient = false
+            ignoreUnknownKeys = true
+            allowSpecialFloatingPointValues = true
+            namingStrategy = PascalCaseToCamelCase
         }
     }
 
@@ -368,7 +379,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
         val sessionData = client.post(
             url = sessionUrl,
-            body = JSON_INSTANCE.encodeToString(playbackInfo).toJsonBody(),
+            body = json.encodeToString(playbackInfo).toJsonBody(),
         ).parseAs<SessionDto>()
 
         val videoBitrate = mediaSource.bitrate!!.formatBytes().replace("B", "b")
@@ -687,7 +698,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                 "Selected: %s"
             }
         }
-        val libraryList = JSON_INSTANCE.decodeFromString<List<MediaLibraryDto>>(preferences.libraryList)
+        val libraryList = json.decodeFromString<List<MediaLibraryDto>>(preferences.libraryList)
         val mediaLibraryPref = screen.getListPreference(
             key = MEDIA_LIBRARY_KEY,
             default = MEDIA_LIBRARY_DEFAULT,
@@ -705,7 +716,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             mediaLibraryPref.value = ""
 
             if (result) {
-                val libraryList = JSON_INSTANCE.decodeFromString<List<MediaLibraryDto>>(preferences.libraryList)
+                val libraryList = json.decodeFromString<List<MediaLibraryDto>>(preferences.libraryList)
                 mediaLibraryPref.entries = libraryList.map { it.name }.toTypedArray()
                 mediaLibraryPref.entryValues = libraryList.map { it.id }.toTypedArray()
             } else {
@@ -747,7 +758,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                         displayToast("Login successful")
 
                         handler.post {
-                            preferences.libraryList = JSON_INSTANCE.encodeToString<List<MediaLibraryDto>>(libraryList)
+                            preferences.libraryList = json.encodeToString<List<MediaLibraryDto>>(libraryList)
                             onCompleteLogin(true)
                         }
                     },
