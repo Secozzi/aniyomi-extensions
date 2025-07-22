@@ -1,31 +1,14 @@
 plugins {
-    id("com.android.library")
-    kotlin("android")
+    id("extensions.android.library")
+    id("extensions.kotlin")
 }
 
 android {
-    compileSdk = AndroidConfig.compileSdk
-    namespace = AndroidConfig.coreNamespace
-
-    defaultConfig {
-        minSdk = AndroidConfig.minSdk
-    }
+    namespace = "extensions.core"
 
     buildFeatures {
         resValues = false
-        shaders = false
     }
-
-    kotlinOptions {
-        freeCompilerArgs += "-opt-in=kotlinx.serialization.ExperimentalSerializationApi"
-    }
-
-    // sourceSets {
-    //     named("main") {
-    //         manifest.srcFile("AndroidManifest.xml")
-    //         res.setSrcDirs(listOf("res"))
-    //     }
-    // }
 }
 
 dependencies {

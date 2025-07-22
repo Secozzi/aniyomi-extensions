@@ -600,14 +600,14 @@ class Stremio : Source() {
         private val STRING_SUBSTITUTOR = StringSubstitutor(SUBSTITUTE_VALUES, "{", "}").apply {
             isEnableUndefinedVariableException = true
         }
-        private val SUBSTITUTE_DIALOG_MESSAGE = """
+        private val SUBSTITUTE_DIALOG_MESSAGE = $$"""
         |Supported placeholders:
         |- {name}: Episode name
         |- {episodeNumber}: Episode number
         |- {seasonNumber}: Season number
         |- {description}: Episode description
         |If you wish to place some text between curly brackets, place the escape character "$"
-        |before the opening curly bracket, e.g. ${'$'}{name}.
+        |before the opening curly bracket, e.g. ${name}.
         """.trimMargin()
 
         private const val PREF_EPISODE_NAME_TEMPLATE_KEY = "pref_episode_name_template"

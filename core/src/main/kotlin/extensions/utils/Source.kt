@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
+import kotlinx.serialization.json.Json
 import okhttp3.Response
 import uy.kohesive.injekt.injectLazy
 import kotlin.getValue
@@ -18,6 +19,8 @@ abstract class Source : ConfigurableAnimeSource, AnimeHttpSource() {
     protected val context: Application by injectLazy()
 
     protected open val migration: SharedPreferences.() -> Unit = {}
+
+    open val json: Json by injectLazy()
 
     val preferences: SharedPreferences by lazy {
         context.getSharedPreferences("source_$id", 0x0000).also(migration)

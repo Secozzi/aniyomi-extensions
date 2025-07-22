@@ -38,7 +38,6 @@ import extensions.utils.toJsonBody
 import extensions.utils.toRequestBody
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Dns
@@ -859,7 +858,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             default = PREF_EPISODE_NAME_TEMPLATE_DEFAULT,
             title = "Episode title format",
             summary = "Customize how episode names appear",
-            dialogMessage = """
+            dialogMessage = $$"""
             |Supported placeholders:
             |- {title}: Episode name
             |- {originalTitle}: Original title
@@ -876,7 +875,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             |- {runtime}: Episode runtime (formatted)
             |- {runtimeS}: Episode runtime (in seconds)
             |If you wish to place some text between curly brackets, place the escape character "$"
-            |before the opening curly bracket, e.g. ${'$'}{series}.
+            |before the opening curly bracket, e.g. ${series}.
             """.trimMargin(),
             inputType = InputType.TYPE_CLASS_TEXT,
             validate = {
