@@ -2,6 +2,7 @@ ext {
     extName = 'Stremio'
     extClass = '.Stremio'
     extVersionCode = 3
+    extNames = ["Stremio"]
 }
 
 apply from: "$rootDir/common.gradle"

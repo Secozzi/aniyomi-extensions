@@ -36,21 +36,16 @@ android {
             archivesName = "aniyomi-$applicationIdSuffix-v$versionName"
         }
         assert extClass.startsWith(".")
+        String[] names = project.ext.find("extNames") ?: []
+        assert names.length > 0
+
         manifestPlaceholders = [
                 appName : "Aniyomi: $extName",
                 extClass: extClass,
                 nsfw    : project.ext.find("isNsfw") ? 1 : 0,
+                versionId : project.ext.find("versionId") ?: 1,
+                names : names.join(";")
         ]
-        String baseUrl = project.ext.find("baseUrl") ?: ""
-        if (!baseUrl.isEmpty()) {
-            def split = baseUrl.split("://")
-            assert split.length == 2
-            def path = split[1].split("/")
-            manifestPlaceholders += [
-                    SOURCEHOST  : path[0],
-                    SOURCESCHEME: split[0],
-            ]
-        }
     }
 
     signingConfigs {

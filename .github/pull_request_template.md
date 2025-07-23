@@ -1,7 +1,6 @@
 Checklist:
 
 - [ ] Updated `extVersionCode` value in `build.gradle` for individual extensions
-- [ ] Updated `overrideVersionCode` or `baseVersionCode` as needed for all multisrc extensions
 - [ ] Referenced all related issues in the PR body (e.g. "Closes #xyz")
 - [ ] Added the `isNsfw = true` flag in `build.gradle` when appropriate
 - [ ] Have not changed source names
