@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -9,6 +10,8 @@ PACKAGE_NAME_REGEX = re.compile(r"package: name='([^']+)'")
 VERSION_CODE_REGEX = re.compile(r"versionCode='([^']+)'")
 VERSION_NAME_REGEX = re.compile(r"versionName='([^']+)'")
 IS_NSFW_REGEX = re.compile(r"'tachiyomi.animeextension.nsfw' value='([^']+)'")
+VERSION_ID_REGEX = re.compile(r"'tachiyomi.animeextension.versionId' value='([^']+)'")
+NAMES_REGEX = re.compile(r"'tachiyomi.animeextension.names' value='([^']+)'")
 APPLICATION_LABEL_REGEX = re.compile(r"^application-label:'([^']+)'", re.MULTILINE)
 APPLICATION_ICON_320_REGEX = re.compile(
     r"^application-icon-320:'([^']+)'", re.MULTILINE
@@ -22,11 +25,17 @@ REPO_ICON_DIR = REPO_DIR / "icon"
 
 REPO_ICON_DIR.mkdir(parents=True, exist_ok=True)
 
-with open("output.json", encoding="utf-8") as f:
-    inspector_data = json.load(f)
-
 index_data = []
 index_min_data = []
+
+def get_id(name: str, version_id: int) -> str:
+    key = f"{name.lower()}/all/{version_id}"
+    md5_hash = hashlib.md5(key.encode()).digest()
+    result = 0
+    for i in range(8):
+        result |= (md5_hash[i] & 0xff) << (8 * (7 - i))
+
+    return str(result & 0x7FFFFFFFFFFFFFFF)
 
 for apk in REPO_APK_DIR.iterdir():
     badging = subprocess.check_output(
@@ -49,17 +58,8 @@ for apk in REPO_APK_DIR.iterdir():
         f.write(i.read())
 
     language = LANGUAGE_REGEX.search(apk.name).group(1)
-    sources = inspector_data[package_name]
-
-    if len(sources) == 1:
-        source_language = sources[0]["lang"]
-
-        if (
-            source_language != language
-            and source_language not in {"all", "other"}
-            and language not in {"all", "other"}
-        ):
-            language = source_language
+    names = NAMES_REGEX.search(badging).group(1).split(";")
+    version_id = int(VERSION_ID_REGEX.search(badging).group(1))
 
     common_data = {
         "name": APPLICATION_LABEL_REGEX.search(badging).group(1),
@@ -75,13 +75,19 @@ for apk in REPO_APK_DIR.iterdir():
         "sources": [],
     }
 
-    for source in sources:
+    for i, name in enumerate(names):
+        # TODO: Remove check with jellyfin versionId bump
+        extName = name
+        if i == 0 and "Jellyfin" in name:
+            extName = "Jellyfin"
+
         min_data["sources"].append(
             {
-                "name": source["name"],
-                "lang": source["lang"],
-                "id": source["id"],
-                "baseUrl": source["baseUrl"],
+                "name": name,
+                "lang": language,
+                "id": get_id(extName, version_id),
+                "baseUrl": "",
+                "versionId": version_id,
             }
         )
 

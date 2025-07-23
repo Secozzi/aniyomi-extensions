@@ -1,25 +1,17 @@
 plugins {
-    id("com.android.library")
+    id("extensions.android.library")
+    id("extensions.kotlin")
+    id("extensions.lint")
 }
 
 android {
-    compileSdk = AndroidConfig.compileSdk
-    namespace = AndroidConfig.coreNamespace
+    namespace = "extensions.core"
 
-    defaultConfig {
-        minSdk = AndroidConfig.minSdk
+    buildFeatures {
+        resValues = false
     }
+}
 
-    sourceSets {
-        named("main") {
-            manifest.srcFile("AndroidManifest.xml")
-            res.setSrcDirs(listOf("res"))
-        }
-    }
-
-    libraryVariants.all {
-        generateBuildConfigProvider?.configure {
-            enabled = false
-        }
-    }
+dependencies {
+    compileOnly(versionCatalogs.named("libs").findBundle("common").get())
 }
