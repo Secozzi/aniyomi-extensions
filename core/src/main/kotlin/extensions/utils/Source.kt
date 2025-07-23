@@ -39,7 +39,11 @@ abstract class Source : ConfigurableAnimeSource, AnimeHttpSource() {
     override fun popularAnimeParse(response: Response) = throw UnsupportedOperationException()
     override fun latestUpdatesRequest(page: Int) = throw UnsupportedOperationException()
     override fun latestUpdatesParse(response: Response) = throw UnsupportedOperationException()
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList) = throw UnsupportedOperationException()
+    override fun searchAnimeRequest(
+        page: Int,
+        query: String,
+        filters: AnimeFilterList,
+    ) = throw UnsupportedOperationException()
     override fun searchAnimeParse(response: Response) = throw UnsupportedOperationException()
     override fun animeDetailsRequest(anime: SAnime) = throw UnsupportedOperationException()
     override fun animeDetailsParse(response: Response) = throw UnsupportedOperationException()

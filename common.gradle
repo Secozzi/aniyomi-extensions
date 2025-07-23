@@ -1,5 +1,6 @@
 apply plugin: 'extensions.android.application'
 apply plugin: 'extensions.kotlin'
+apply plugin: 'extensions.lint'
 
 assert !ext.has("pkgNameSuffix")
 assert !ext.has("libVersion")

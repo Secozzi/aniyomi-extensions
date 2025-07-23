@@ -150,7 +150,8 @@ class Stremio : Source() {
                 if (extraProps.isNotEmpty()) {
                     addPathSegment(extraProps.joinToString("&"))
                 }
-            }.build().toString() + ".json",
+            }.build().toString() +
+                ".json",
             headers,
         )
 
@@ -200,9 +201,13 @@ class Stremio : Source() {
         return sortedWith { a, b ->
             when (librarySort) {
                 LibrarySort.LAST_WATCHED -> b.state.lastWatched.compareTo(a.state.lastWatched)
+
                 LibrarySort.AZ -> a.name.lowercase().compareTo(b.name.lowercase())
+
                 LibrarySort.ZA -> b.name.lowercase().compareTo(a.name.lowercase())
+
                 LibrarySort.MOST_WATCHED -> b.state.timesWatched.compareTo(a.state.timesWatched)
+
                 LibrarySort.WATCHED -> compareValuesBy(
                     b,
                     a,
@@ -210,6 +215,7 @@ class Stremio : Source() {
                     { it.state.lastWatched },
                     { it.ctime },
                 )
+
                 LibrarySort.NOT_WATCHED -> compareValuesBy(
                     a,
                     b,
@@ -401,7 +407,11 @@ class Stremio : Source() {
                         )
                     }.toTypedArray()
 
-                    add(AnimeFilter.Header("Select anything except 'None' to search your library. Note: overrides and ignores other filters"))
+                    add(
+                        AnimeFilter.Header(
+                            "Select anything except 'None' to search your library. Note: overrides and ignores other filters",
+                        ),
+                    )
                     add(LibraryTypeFilter(validLibraryTypes))
                     add(LibrarySortFilter())
                 }
@@ -446,7 +456,8 @@ class Stremio : Source() {
                     addPathSegment("meta")
                     addPathSegment(type)
                     addPathSegment(id)
-                }.build().toString() + ".json",
+                }.build().toString() +
+                    ".json",
                 headers,
             ).parseAs<MetaResultDto>().meta
         } catch (_: Exception) {
@@ -534,7 +545,8 @@ class Stremio : Source() {
                     addPathSegment("stream")
                     addPathSegment(type)
                     addPathSegment(id)
-                }.build().toString() + ".json"
+                }.build().toString() +
+                    ".json"
 
                 client.get(url, headers)
                     .parseAs<StreamResultDto>()
@@ -553,7 +565,8 @@ class Stremio : Source() {
                     addPathSegment("subtitles")
                     addPathSegment(type)
                     addPathSegment(id)
-                }.build().toString() + ".json"
+                }.build().toString() +
+                    ".json"
 
                 client.get(url, headers)
                     .parseAs<SubtitleResultDto>()
@@ -635,10 +648,16 @@ class Stremio : Source() {
     private val passwordDelegate = preferences.delegate(PASSWORD_KEY, PASSWORD_DEFAULT)
     private val SharedPreferences.password by passwordDelegate
 
-    private val nameTemplateDelegate = preferences.delegate(PREF_EPISODE_NAME_TEMPLATE_KEY, PREF_EPISODE_NAME_TEMPLATE_DEFAULT)
+    private val nameTemplateDelegate = preferences.delegate(
+        PREF_EPISODE_NAME_TEMPLATE_KEY,
+        PREF_EPISODE_NAME_TEMPLATE_DEFAULT,
+    )
     private val SharedPreferences.nameTemplate by nameTemplateDelegate
 
-    private val scanlatorTemplateDelegate = preferences.delegate(PREF_SCANLATOR_NAME_TEMPLATE_KEY, PREF_SCANLATOR_NAME_TEMPLATE_DEFAULT)
+    private val scanlatorTemplateDelegate = preferences.delegate(
+        PREF_SCANLATOR_NAME_TEMPLATE_KEY,
+        PREF_SCANLATOR_NAME_TEMPLATE_DEFAULT,
+    )
     private val SharedPreferences.scanlatorTemplate by scanlatorTemplateDelegate
 
     private val skipSeason0Delegate = preferences.delegate(PREF_SKIP_SEASON_0_KEY, PREF_SKIP_SEASON_0_DEFAULT)
@@ -685,7 +704,13 @@ class Stremio : Source() {
             false
         }
 
-        val getLibrarySummary: (String) -> String = { if (it.isBlank()) "Currently not logged in" else "Please keep disabled if not used to reduce number of requests" }
+        val getLibrarySummary: (String) -> String = {
+            if (it.isBlank()) {
+                "Currently not logged in"
+            } else {
+                "Please keep disabled if not used to reduce number of requests"
+            }
+        }
         val getLibraryPref = screen.getSwitchPreference(
             key = PREF_FETCH_LIBRARY_KEY,
             default = PREF_FETCH_LIBRARY_DEFAULT,
@@ -816,7 +841,9 @@ class Stremio : Source() {
             }
         }
 
-        val passwordSummary: (String) -> String = { if (it.isBlank()) "The user account password" else "•".repeat(it.length) }
+        val passwordSummary: (String) -> String = {
+            if (it.isBlank()) "The user account password" else "•".repeat(it.length)
+        }
         screen.addEditTextPreference(
             key = PASSWORD_KEY,
             title = "Password",

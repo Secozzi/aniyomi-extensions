@@ -486,6 +486,6 @@ fun PreferenceScreen.addSwitchPreference(
         restartRequired = restartRequired,
         enabled = enabled,
         lazyDelegate = lazyDelegate,
-        onChange = onChange
+        onChange = onChange,
     ).also(::addPreference)
 }

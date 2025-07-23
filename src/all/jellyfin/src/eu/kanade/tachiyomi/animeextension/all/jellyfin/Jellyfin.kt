@@ -255,6 +255,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                     addQueryParameter("Fields", "Overview,MediaSources,DateCreated,OriginalTitle,SortName")
                 }.build()
             }
+
             fragment.startsWith("boxSet") -> {
                 httpUrl.newBuilder().apply {
                     removePathSegment(3)
@@ -266,6 +267,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                     addQueryParameter("Fields", "DateCreated,OriginalTitle,SortName")
                 }.build()
             }
+
             fragment.startsWith("series") -> {
                 httpUrl.newBuilder().apply {
                     encodedPath("/")
@@ -275,6 +277,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                     addQueryParameter("Fields", "DateCreated,OriginalTitle,SortName")
                 }.build()
             }
+
             else -> {
                 httpUrl.newBuilder().apply {
                     addQueryParameter("Fields", "DateCreated,OriginalTitle,SortName")
@@ -323,6 +326,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                 "Video" -> {
                     referenceBitrate = media.bitRate!!
                 }
+
                 "Subtitle" -> {
                     if (media.supportsExternalStream) {
                         val subtitleUrl = baseUrl.toHttpUrl().newBuilder().apply {
@@ -344,6 +348,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                         subtitleTrackIndex = media.index
                     }
                 }
+
                 "Audio" -> {
                     if (media.language == preferences.audioLang) {
                         audioTrackIndex = media.index
@@ -656,7 +661,10 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     private val selectedLibraryDelegate = preferences.delegate(MEDIA_LIBRARY_KEY, MEDIA_LIBRARY_DEFAULT)
     private var SharedPreferences.selectedLibrary by selectedLibraryDelegate
 
-    private val episodeTemplateDelegate = preferences.delegate(PREF_EPISODE_NAME_TEMPLATE_KEY, PREF_EPISODE_NAME_TEMPLATE_DEFAULT)
+    private val episodeTemplateDelegate = preferences.delegate(
+        PREF_EPISODE_NAME_TEMPLATE_KEY,
+        PREF_EPISODE_NAME_TEMPLATE_DEFAULT,
+    )
     private val SharedPreferences.episodeTemplate by episodeTemplateDelegate
 
     private val epDetailsDelegate = preferences.delegate(PREF_EP_DETAILS_KEY, PREF_EP_DETAILS_DEFAULT)
@@ -680,7 +688,10 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     private val seriesDataDelegate = preferences.delegate(PREF_INFO_TYPE, PREF_INFO_DEFAULT)
     private val SharedPreferences.seriesData by seriesDataDelegate
 
-    private val splitCollectionDelegate = preferences.delegate(PREF_SPLIT_COLLECTIONS_KEY, PREF_SPLIT_COLLECTIONS_DEFAULT)
+    private val splitCollectionDelegate = preferences.delegate(
+        PREF_SPLIT_COLLECTIONS_KEY,
+        PREF_SPLIT_COLLECTIONS_DEFAULT,
+    )
     private val SharedPreferences.splitCollections by splitCollectionDelegate
 
     private fun clearCredentials() {

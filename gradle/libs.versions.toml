@@ -3,11 +3,16 @@ agp_version = "8.11.1"
 coroutines_version = "1.10.2"
 kotlin_version = "2.2.0"
 serialization_version = "1.9.0"
+spotless = "7.2.1"
+ktlint-core = "1.7.1"
 
 [libraries]
 gradle-agp = { module = "com.android.tools.build:gradle", version.ref = "agp_version" }
 gradle-kotlin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin_version" }
 gradle-kotlin-serialization = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin_version" }
+
+spotless-gradle = { group = "com.diffplug.spotless", name = "spotless-plugin-gradle", version.ref = "spotless" }
+ktlint-core = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint-core" }
 
 aniyomi-lib = { module = "com.github.aniyomiorg:extensions-lib", version = "14" }
 
