@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+rsync -a --delete --exclude repo.json --exclude .git --exclude .gitignore ../master/repo/ .
 git config --global user.email "action@github.com"
 git config --global user.name "GitHub Action"
 git status
