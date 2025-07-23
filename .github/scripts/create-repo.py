@@ -97,7 +97,7 @@ for apk in REPO_APK_DIR.iterdir():
             **common_data,
             "hasReadme": 0,
             "hasChangelog": 0,
-            "sources": sources,
+            "sources": min_data["sources"],
         }
     )
 
