@@ -67,7 +67,7 @@ jobs:
   publish_repo:
     name: Publish repo
     needs:
-      - build_individual
+      - build
     if: "github.repository == 'Secozzi/aniyomi-extensions'"
     runs-on: ubuntu-latest
     steps:
