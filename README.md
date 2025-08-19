@@ -1,11 +1,21 @@
-| Build | Support Server |
-|-------|---------|
-| ![CI](https://github.com/aniyomiorg/aniyomi-extensions/workflows/CI/badge.svg?event=push) | [![Discord](https://img.shields.io/discord/841701076242530374?label=discord&labelColor=7289da&color=2c2f33&style=flat)](https://discord.gg/F32UjdJZrR) |
-
 # ![app icon](./.github/readme-images/app-icon.png)Aniyomi Extensions
-Aniyomi is a free and open source manga reader for Android 6.0 and above.
+Aniyomi is a free and open source manga reader for Android 8.0 and above.
 
 This repository contains the available extension catalogues for the [Aniyomi](https://github.com/aniyomiorg/aniyomi) fork.
+
+# Installation
+
+## Automatic installation
+
+[![Install](https://img.shields.io/badge/Click%20here%20to%20install%20repo-gray?style=flat&labelColor=red)](https://intradeus.github.io/http-protocol-redirector/?r=aniyomi://add-repo?url=https://raw.githubusercontent.com/Secozzi/aniyomi-extensions/refs/heads/repo/index.min.json)
+
+## Manual installation
+
+Add the following link under **Settings > Browse > Anime extension repos**
+
+```
+https://raw.githubusercontent.com/Secozzi/aniyomi-extensions/refs/heads/repo/index.min.json
+```
 
 # Usage
 
@@ -13,17 +23,17 @@ Extension sources can be downloaded, installed, and uninstalled via the main Ani
 
 ## Downloads
 
-If you prefer to directly download the APK files, they are available via https://aniyomi.org/extensions/ or directly in this GitHub repository in the [`repo` branch](https://github.com/aniyomiorg/aniyomi-extensions/tree/repo/apk).
+If you prefer to directly download the APK files, they are available in this GitHub repository in the [`repo` branch](https://github.com/Secozzi/aniyomi-extensions/tree/repo/apk).
 
 # Requests
 
-Source requests here are meant as up-for-grabs for any developer, thus it's impossible to provide a time estimation for any of them. Furthermore, some sites are impossible to do, usually because of various technical reasons.
+I unfortunately do not take requests, as this repo is only for extensions I use myself.
 
 # Contributing
 
 Contributions are welcome!
 
-Check out the repo's [issue backlog](https://github.com/aniyomiorg/aniyomi-extensions/issues) for source requests and bug reports.
+Check out the repo's [issue backlog](https://github.com/Secozzi/aniyomi-extensions/issues) for source requests and bug reports.
 
 To get started with development, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 

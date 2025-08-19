@@ -6,7 +6,7 @@ import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonResultDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.ManifestDto
 import eu.kanade.tachiyomi.util.parallelMapNotNull
-import extensions.utils.LazyMutablePreference
+import extensions.utils.PreferenceDelegate
 import extensions.utils.Source
 import extensions.utils.get
 import extensions.utils.parseAs
@@ -21,8 +21,8 @@ import kotlin.reflect.KProperty
 
 @Suppress("SpellCheckingInspection")
 class AddonManager(
-    addonDelegate: LazyMutablePreference<String>,
-    authKeyDelegate: LazyMutablePreference<String>,
+    addonDelegate: PreferenceDelegate<String>,
+    authKeyDelegate: PreferenceDelegate<String>,
 ) : ReadOnlyProperty<Source, List<AddonDto>> {
     private val addonValue by addonDelegate
     private val authKeyValue by authKeyDelegate
@@ -52,8 +52,10 @@ class AddonManager(
 
             if (useAddons) {
                 cachedAddons = addonValue
+                cachedAuthKey = null
             } else {
                 cachedAuthKey = authKeyValue
+                cachedAddons = null
             }
         }
 

@@ -427,7 +427,7 @@ class Stremio : Source() {
     override fun getAnimeUrl(anime: SAnime): String {
         val (type, id) = anime.url.split("-", limit = 2)
 
-        return preferences.webUIUrl.toHttpUrl().newBuilder()
+        return baseUrl.toHttpUrl().newBuilder()
             .fragment("/detail/$type/$id")
             .build().toString()
     }
@@ -470,7 +470,7 @@ class Stremio : Source() {
         val (type, id) = episode.url.split("-", limit = 2)
         val entryId = id.substringBefore(":")
 
-        return preferences.webUIUrl.toHttpUrl().newBuilder()
+        return baseUrl.toHttpUrl().newBuilder()
             .fragment("/detail/$type/$entryId/$id")
             .build().toString()
     }
@@ -634,36 +634,26 @@ class Stremio : Source() {
     // ============================ Preferences =============================
 
     private var SharedPreferences.authKey by authKeyDelegate
-
-    private val webUIDelegate = preferences.delegate(WEBUI_URL_KEY, WEBUI_URL_DEFAULT)
-    private val SharedPreferences.webUIUrl by webUIDelegate
-
-    private val serverUrlDelegate = preferences.delegate(SERVER_URL_KEY, SERVER_URL_DEFAULT)
-    private val SharedPreferences.serverUrl by serverUrlDelegate
-
-    private val emailDelegate = preferences.delegate(EMAIL_KEY, EMAIL_DEFAULT)
-    private val SharedPreferences.email by emailDelegate
-
-    private val passwordDelegate = preferences.delegate(PASSWORD_KEY, PASSWORD_DEFAULT)
-    private val SharedPreferences.password by passwordDelegate
-
-    private val nameTemplateDelegate = preferences.delegate(
+    private val SharedPreferences.webUIUrl by preferences.delegate(WEBUI_URL_KEY, WEBUI_URL_DEFAULT)
+    private val SharedPreferences.serverUrl by preferences.delegate(SERVER_URL_KEY, SERVER_URL_DEFAULT)
+    private val SharedPreferences.email by preferences.delegate(EMAIL_KEY, EMAIL_DEFAULT)
+    private val SharedPreferences.password by preferences.delegate(PASSWORD_KEY, PASSWORD_DEFAULT)
+    private val SharedPreferences.nameTemplate by preferences.delegate(
         PREF_EPISODE_NAME_TEMPLATE_KEY,
         PREF_EPISODE_NAME_TEMPLATE_DEFAULT,
     )
-    private val SharedPreferences.nameTemplate by nameTemplateDelegate
-
-    private val scanlatorTemplateDelegate = preferences.delegate(
+    private val SharedPreferences.scanlatorTemplate by preferences.delegate(
         PREF_SCANLATOR_NAME_TEMPLATE_KEY,
         PREF_SCANLATOR_NAME_TEMPLATE_DEFAULT,
     )
-    private val SharedPreferences.scanlatorTemplate by scanlatorTemplateDelegate
-
-    private val skipSeason0Delegate = preferences.delegate(PREF_SKIP_SEASON_0_KEY, PREF_SKIP_SEASON_0_DEFAULT)
-    private val SharedPreferences.skipSeason0 by skipSeason0Delegate
-
-    private val fetchLibraryDelegate = preferences.delegate(PREF_FETCH_LIBRARY_KEY, PREF_FETCH_LIBRARY_DEFAULT)
-    private val SharedPreferences.fetchLibrary by fetchLibraryDelegate
+    private val SharedPreferences.skipSeason0 by preferences.delegate(
+        PREF_SKIP_SEASON_0_KEY,
+        PREF_SKIP_SEASON_0_DEFAULT,
+    )
+    private val SharedPreferences.fetchLibrary by preferences.delegate(
+        PREF_FETCH_LIBRARY_KEY,
+        PREF_FETCH_LIBRARY_DEFAULT,
+    )
 
     private fun SharedPreferences.clearCredentials() {
         edit()
@@ -717,7 +707,6 @@ class Stremio : Source() {
             title = "Fetch library",
             summary = getLibrarySummary(preferences.authKey),
             enabled = preferences.authKey.isNotBlank(),
-            lazyDelegate = fetchLibraryDelegate,
         )
 
         val webUiSummary: (String) -> String = { it.ifBlank { "WebUI url (used only for WebView)" } }
@@ -731,10 +720,7 @@ class Stremio : Source() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI,
             validate = { it.toHttpUrlOrNull() != null && !it.endsWith("/") },
             validationMessage = { "The URL is invalid, malformed, or ends with a slash" },
-        ) {
-            baseUrl = it
-            webUIDelegate.updateValue(it)
-        }
+        ) { baseUrl = it }
 
         val serverUrlSummary: (String) -> String = { it.ifBlank { "Server url for torrent streams (optional)" } }
         screen.addEditTextPreference(
@@ -747,7 +733,6 @@ class Stremio : Source() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI,
             validate = { it.toHttpUrlOrNull() != null && !it.endsWith("/") },
             validationMessage = { "The URL is invalid, malformed, or ends with a slash" },
-            lazyDelegate = serverUrlDelegate,
         )
 
         val isValidAddon: (String) -> Boolean = {
@@ -769,7 +754,6 @@ class Stremio : Source() {
                 val invalidUrl = urls.firstOrNull { url -> !isValidAddon(url) } ?: it
                 "'$invalidUrl' is not a valid stremio addon"
             },
-            lazyDelegate = addonDelegate,
         )
 
         fun onCompleteLogin(result: Boolean) {
@@ -828,7 +812,6 @@ class Stremio : Source() {
             getSummary = emailSummary,
             dialogMessage = "Email address",
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
-            lazyDelegate = emailDelegate,
         ) {
             if (preferences.password.isNotBlank()) {
                 logIn()
@@ -845,7 +828,6 @@ class Stremio : Source() {
             summary = passwordSummary(preferences.password),
             getSummary = passwordSummary,
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
-            lazyDelegate = passwordDelegate,
         ) {
             if (preferences.email.isNotBlank()) {
                 logIn()
@@ -868,7 +850,6 @@ class Stremio : Source() {
                 }
             },
             validationMessage = { "Invalid episode name format" },
-            lazyDelegate = nameTemplateDelegate,
         )
 
         screen.addEditTextPreference(
@@ -887,7 +868,6 @@ class Stremio : Source() {
                 }
             },
             validationMessage = { "Invalid scanlator format" },
-            lazyDelegate = scanlatorTemplateDelegate,
         )
 
         screen.addSwitchPreference(
@@ -895,7 +875,6 @@ class Stremio : Source() {
             default = PREF_SKIP_SEASON_0_DEFAULT,
             title = "Skip season 0",
             summary = "Filter out specials",
-            lazyDelegate = skipSeason0Delegate,
         )
 
         screen.addPreference(logOutPref)
