@@ -12,10 +12,14 @@ import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.ExtraType
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
+import eu.kanade.tachiyomi.animesource.model.Hoster
+import eu.kanade.tachiyomi.animesource.model.Hoster.Companion.toHosterList
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.network.get
+import eu.kanade.tachiyomi.network.post
 import eu.kanade.tachiyomi.util.parallelCatchingFlatMap
 import extensions.utils.LazyMutable
 import extensions.utils.Source
@@ -23,10 +27,8 @@ import extensions.utils.addEditTextPreference
 import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
 import extensions.utils.firstInstance
-import extensions.utils.get
 import extensions.utils.getSwitchPreference
 import extensions.utils.parseAs
-import extensions.utils.post
 import extensions.utils.toRequestBody
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -531,7 +533,11 @@ class Stremio : Source() {
 
     // ============================ Video Links =============================
 
-    override suspend fun getVideoList(episode: SEpisode): List<Video> {
+    override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
+        return getVideoList(episode).toHosterList()
+    }
+
+    private suspend fun getVideoList(episode: SEpisode): List<Video> {
         val (type, id) = episode.url.split("-", limit = 2)
 
         val subtitles = getSubtitleList(type, id)
@@ -553,7 +559,6 @@ class Stremio : Source() {
                     .map { v -> v.toVideo(serverUrl, subtitles) }
             }
             .filterNotNull()
-            .sort()
     }
 
     private suspend fun getSubtitleList(type: String, id: String): List<Track> {

@@ -18,11 +18,15 @@ import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.SessionDto
 import eu.kanade.tachiyomi.animesource.UnmeteredSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
+import eu.kanade.tachiyomi.animesource.model.Hoster
+import eu.kanade.tachiyomi.animesource.model.Hoster.Companion.toHosterList
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.HttpException
+import eu.kanade.tachiyomi.network.get
+import eu.kanade.tachiyomi.network.post
 import extensions.utils.LazyMutable
 import extensions.utils.Source
 import extensions.utils.addEditTextPreference
@@ -30,17 +34,17 @@ import extensions.utils.addListPreference
 import extensions.utils.addSetPreference
 import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
-import extensions.utils.get
 import extensions.utils.getListPreference
 import extensions.utils.parseAs
-import extensions.utils.post
 import extensions.utils.toJsonBody
+import extensions.utils.toJsonString
 import extensions.utils.toRequestBody
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -57,13 +61,6 @@ import kotlin.getValue
 
 @Suppress("SpellCheckingInspection")
 class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
-    override val migration: SharedPreferences.() -> Unit = {
-        val quality = getString(PREF_QUALITY_KEY, PREF_QUALITY_DEFAULT)!!
-        Constants.QUALITY_MIGRATION_MAP[quality]?.let {
-            edit().putString(PREF_QUALITY_KEY, it.toString()).commit()
-        }
-    }
-
     override val json: Json by lazy {
         Json {
             isLenient = false
@@ -84,8 +81,10 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
     override val supportsLatest = true
 
+    override val versionId = 2
+
     override val id by lazy {
-        val key = "jellyfin" + (if (suffix == "1") "" else " ($suffix)") + "/all/$versionId"
+        val key = "jellyfin ($suffix)/all/$versionId"
         val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())
         (0..7).map { bytes[it].toLong() and 0xff shl 8 * (7 - it) }.reduce(Long::or) and Long.MAX_VALUE
     }
@@ -195,8 +194,6 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     // =========================== Anime Details ============================
 
     override suspend fun getAnimeDetails(anime: SAnime): SAnime {
-        if (!anime.url.startsWith("http")) throw Exception("Migrate from jellyfin to jellyfin")
-
         val data = client.get(anime.url).parseAs<ItemDto>()
         val infoData = if (preferences.seriesData && data.seriesId != null) {
             val httpUrl = anime.url.toHttpUrl()
@@ -216,8 +213,6 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     // ============================== Episodes ==============================
 
     override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
-        if (!anime.url.startsWith("http")) throw Exception("Migrate from jellyfin to jellyfin")
-
         val url = getEpisodeListUrl(anime)
         val response = client.get(url)
 
@@ -306,9 +301,11 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
     // ============================ Video Links =============================
 
-    override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        if (!episode.url.startsWith("http")) throw Exception("Migrate from jellyfin to jellyfin")
+    override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
+        return getVideoList(episode).toHosterList()
+    }
 
+    private suspend fun getVideoList(episode: SEpisode): List<Video> {
         val item = client.get(episode.url).parseAs<ItemDto>()
         val mediaSource = item.mediaSources?.firstOrNull() ?: return emptyList()
         val itemId = item.id
@@ -357,37 +354,16 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             }
         }
 
-        val qualities = Constants.QUALITIES_LIST.takeWhile { it.videoBitrate < referenceBitrate }
-        val playbackInfo = PlaybackInfoDto(
-            userId = preferences.userId,
-            isPlayback = true,
-            mediaSourceId = mediaSource.id!!,
-            maxStreamingBitrate = qualities.last().videoBitrate,
+        val sessionData = getSessionData(
+            videoBitrate = Int.MAX_VALUE,
+            audioBitrate = Int.MAX_VALUE,
+            mediaId = mediaSource.id!!,
+            itemId = itemId,
             audioStreamIndex = audioTrackIndex?.toString(),
             subtitleStreamIndex = subtitleTrackIndex?.toString(),
-            alwaysBurnInSubtitleWhenTranscoding = preferences.burnSub,
-            enableTranscoding = true,
-            deviceProfile = getDeviceProfile(
-                name = deviceInfo.name,
-                videoCodec = preferences.videoCodec,
-                videoBitrate = qualities.last().videoBitrate,
-                audioBitrate = qualities.last().audioBitrate,
-            ),
         )
 
-        val sessionUrl = baseUrl.toHttpUrl().newBuilder().apply {
-            addPathSegment("Items")
-            addPathSegment(itemId)
-            addPathSegment("PlaybackInfo")
-            addQueryParameter("userId", preferences.userId)
-        }.build().toString()
-
-        val sessionData = client.post(
-            url = sessionUrl,
-            body = json.encodeToString(playbackInfo).toJsonBody(),
-        ).parseAs<SessionDto>()
-
-        val videoBitrate = mediaSource.bitrate!!.formatBytes().replace("B", "b")
+        val videoBitrate = mediaSource.bitrate!!.toLong().formatBytes().replace("B", "b")
         val staticUrl = baseUrl.toHttpUrl().newBuilder().apply {
             addPathSegment("Videos")
             addPathSegment(itemId)
@@ -401,11 +377,12 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             .build()
 
         val staticVideo = Video(
-            url = Long.MAX_VALUE.toString(),
-            quality = "Source - ${videoBitrate}ps",
+            videoTitle = "Source - ${videoBitrate}ps",
             videoUrl = staticUrl,
-            subtitleTracks = externalSubtitleList,
+            bitrate = Int.MAX_VALUE,
             headers = videoHeaders,
+            preferred = mediaSource.bitrate == preferences.quality.toInt(),
+            subtitleTracks = externalSubtitleList,
         )
 
         // Build video list
@@ -413,37 +390,113 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             videoList.add(staticVideo)
         }
 
-        val transcodingUrl = sessionData.mediaSources.first().transcodingUrl
-            ?.takeIf { mediaSource.supportsTranscoding }
-            ?.let { (baseUrl + it).toHttpUrl() }
-            ?: return videoList
+        if (!mediaSource.supportsTranscoding) {
+            return videoList
+        }
 
+        val qualities = Constants.QUALITIES_LIST.takeWhile { it.videoBitrate < referenceBitrate }
         qualities.forEach {
-            val url = transcodingUrl.newBuilder().apply {
-                setQueryParameter("VideoBitrate", it.videoBitrate.toString())
-                setQueryParameter("AudioBitrate", it.audioBitrate.toString())
-            }.build().toString()
-
             videoList.add(
                 Video(
-                    url = it.videoBitrate.toString(),
-                    quality = it.description,
-                    videoUrl = url,
-                    subtitleTracks = subtitleList,
+                    videoUrl = "",
+                    videoTitle = it.description,
+                    bitrate = it.videoBitrate,
                     headers = videoHeaders,
+                    preferred = it.videoBitrate == preferences.quality.toInt(),
+                    subtitleTracks = subtitleList,
+                    internalData = TranscodingInfo(
+                        videoBitrate = it.videoBitrate,
+                        audioBitrate = it.audioBitrate,
+                        mediaId = mediaSource.id,
+                        itemId = itemId,
+                        audioStreamIndex = audioTrackIndex?.toString(),
+                        subtitleStreamIndex = subtitleTrackIndex?.toString(),
+                    ).toJsonString(),
                 ),
             )
         }
 
-        return videoList.sort()
+        return videoList.sortVideos()
     }
 
-    override fun List<Video>.sort(): List<Video> {
-        return sortedWith(
-            compareBy(
-                { it.url.equals(preferences.quality, true) },
-                { it.url.toLong() },
+    @Serializable
+    data class TranscodingInfo(
+        val videoBitrate: Int,
+        val audioBitrate: Int,
+        val mediaId: String,
+        val itemId: String,
+        val audioStreamIndex: String?,
+        val subtitleStreamIndex: String?,
+    )
+
+    private suspend fun getSessionData(
+        videoBitrate: Int,
+        audioBitrate: Int,
+        mediaId: String,
+        itemId: String,
+        audioStreamIndex: String?,
+        subtitleStreamIndex: String?,
+    ): SessionDto {
+        val playbackInfo = PlaybackInfoDto(
+            userId = preferences.userId,
+            isPlayback = true,
+            mediaSourceId = mediaId,
+            maxStreamingBitrate = videoBitrate,
+            audioStreamIndex = audioStreamIndex,
+            subtitleStreamIndex = subtitleStreamIndex,
+            alwaysBurnInSubtitleWhenTranscoding = preferences.burnSub,
+            enableTranscoding = true,
+            deviceProfile = getDeviceProfile(
+                name = deviceInfo.name,
+                videoCodec = preferences.videoCodec,
+                videoBitrate = videoBitrate,
+                audioBitrate = audioBitrate,
             ),
+        )
+
+        val sessionUrl = baseUrl.toHttpUrl().newBuilder().apply {
+            addPathSegment("Items")
+            addPathSegment(itemId)
+            addPathSegment("PlaybackInfo")
+            addQueryParameter("userId", preferences.userId)
+        }.build().toString()
+
+        return client.post(
+            url = sessionUrl,
+            body = json.encodeToString(playbackInfo).toJsonBody(),
+        ).parseAs<SessionDto>()
+    }
+
+    override suspend fun resolveVideo(video: Video): Video? {
+        if (video.videoTitle.startsWith("Source")) {
+            return video
+        }
+
+        val transcodingInfo = video.internalData.parseAs<TranscodingInfo>()
+        val sessionData = getSessionData(
+            videoBitrate = transcodingInfo.videoBitrate,
+            audioBitrate = transcodingInfo.audioBitrate,
+            mediaId = transcodingInfo.mediaId,
+            itemId = transcodingInfo.itemId,
+            audioStreamIndex = transcodingInfo.audioStreamIndex,
+            subtitleStreamIndex = transcodingInfo.subtitleStreamIndex,
+        )
+
+        return sessionData.mediaSources.firstOrNull()?.transcodingUrl?.let {
+            Video(
+                videoTitle = video.videoTitle,
+                videoUrl = baseUrl + it,
+                bitrate = video.bitrate,
+                headers = video.headers,
+                preferred = video.preferred,
+                subtitleTracks = video.subtitleTracks,
+            )
+        }
+    }
+
+    override fun List<Video>.sortVideos(): List<Video> {
+        return sortedWith(
+            compareBy { it.bitrate!! },
         ).reversed()
     }
 
@@ -479,7 +532,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         val charPool = ('a'..'z') + ('0'..'9')
 
         return buildString(length) {
-            for (i in 0 until length) {
+            (0 until length).forEach { _ ->
                 append(charPool.random())
             }
         }
@@ -606,7 +659,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         private val PREF_EP_DETAILS_DEFAULT = emptySet<String>()
 
         private const val PREF_QUALITY_KEY = "pref_quality"
-        private const val PREF_QUALITY_DEFAULT = "Source"
+        private const val PREF_QUALITY_DEFAULT = Int.MAX_VALUE.toString()
 
         private const val PREF_VIDEO_CODEC_KEY = "pref_video_codec"
         private const val PREF_VIDEO_CODEC_DEFAULT = "h264"
@@ -899,7 +952,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             title = "Preferred quality",
             summary = "Preferred quality. 'Source' means no transcoding.",
             entries = listOf("Source") + Constants.QUALITIES_LIST.reversed().map { it.description },
-            entryValues = listOf("Source") + Constants.QUALITIES_LIST.reversed().map { it.videoBitrate.toString() },
+            entryValues = listOf(PREF_QUALITY_DEFAULT) + Constants.QUALITIES_LIST.reversed().map { it.videoBitrate.toString() },
         )
 
         screen.addEditTextPreference(

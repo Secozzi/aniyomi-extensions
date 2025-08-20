@@ -7,6 +7,7 @@ import android.os.Looper
 import android.widget.Toast
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
+import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
@@ -34,7 +35,6 @@ abstract class Source : ConfigurableAnimeSource, AnimeHttpSource() {
         }
     }
 
-    // TODO: Remove with ext lib 16
     override fun popularAnimeRequest(page: Int) = throw UnsupportedOperationException()
     override fun popularAnimeParse(response: Response) = throw UnsupportedOperationException()
     override fun latestUpdatesRequest(page: Int) = throw UnsupportedOperationException()
@@ -49,6 +49,11 @@ abstract class Source : ConfigurableAnimeSource, AnimeHttpSource() {
     override fun animeDetailsParse(response: Response) = throw UnsupportedOperationException()
     override fun episodeListRequest(anime: SAnime) = throw UnsupportedOperationException()
     override fun episodeListParse(response: Response) = throw UnsupportedOperationException()
-    override fun videoListRequest(episode: SEpisode) = throw UnsupportedOperationException()
-    override fun videoListParse(response: Response) = throw UnsupportedOperationException()
+    override fun hosterListRequest(episode: SEpisode) = throw UnsupportedOperationException()
+    override fun hosterListParse(response: Response) = throw UnsupportedOperationException()
+    override fun videoListRequest(hoster: Hoster) = throw UnsupportedOperationException()
+    override fun videoListParse(
+        response: Response,
+        hoster: Hoster,
+    ) = throw UnsupportedOperationException()
 }

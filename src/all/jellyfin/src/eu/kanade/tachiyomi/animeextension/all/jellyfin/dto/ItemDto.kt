@@ -223,7 +223,7 @@ data class SessionDto(
 data class MediaDto(
     val size: Long? = null,
     val id: String? = null,
-    val bitrate: Long? = null,
+    val bitrate: Int? = null,
     val transcodingUrl: String? = null,
     val supportsTranscoding: Boolean,
     val supportsDirectStream: Boolean,
@@ -238,6 +238,6 @@ data class MediaDto(
         val isExternal: Boolean,
         val language: String? = null,
         val displayTitle: String? = null,
-        val bitRate: Long? = null,
+        val bitRate: Int? = null,
     )
 }

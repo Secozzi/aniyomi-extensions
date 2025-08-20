@@ -191,11 +191,10 @@ data class StreamDto(
 
         if (url?.isNotEmpty() == true) {
             return Video(
-                url = url,
-                quality = videoName,
+                videoTitle = videoName,
                 videoUrl = url,
-                subtitleTracks = subtitleList,
                 headers = headers,
+                subtitleTracks = subtitleList,
             )
         }
 
@@ -224,8 +223,7 @@ data class StreamDto(
             }
 
             return Video(
-                url = url,
-                quality = videoName,
+                videoTitle = videoName,
                 videoUrl = url,
                 subtitleTracks = subtitleList,
             )
