@@ -5,12 +5,12 @@ import eu.kanade.tachiyomi.animeextension.all.stremio.Stremio
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonResultDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.ManifestDto
+import eu.kanade.tachiyomi.network.get
+import eu.kanade.tachiyomi.network.post
 import eu.kanade.tachiyomi.util.parallelMapNotNull
 import extensions.utils.PreferenceDelegate
 import extensions.utils.Source
-import extensions.utils.get
 import extensions.utils.parseAs
-import extensions.utils.post
 import extensions.utils.toRequestBody
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -19,7 +19,6 @@ import kotlinx.serialization.json.put
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
 
-@Suppress("SpellCheckingInspection")
 class AddonManager(
     addonDelegate: PreferenceDelegate<String>,
     authKeyDelegate: PreferenceDelegate<String>,

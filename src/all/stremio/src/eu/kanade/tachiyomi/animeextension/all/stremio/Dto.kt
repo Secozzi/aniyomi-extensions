@@ -4,15 +4,15 @@ package eu.kanade.tachiyomi.animeextension.all.stremio
 
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
-import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
+import extensions.utils.Source
+import extensions.utils.toJsonString
 import extensions.utils.tryParse
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import okhttp3.Headers.Companion.toHeaders
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.apache.commons.text.StringSubstitutor
-import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -179,7 +179,17 @@ data class StreamDto(
     val url: String? = null,
     val behaviorHints: BehaviorHintDto? = null,
 ) {
-    fun toVideo(serverUrl: String?, subtitleList: List<Track>): Video? {
+    context(source: Source)
+    fun toVideo(serverUrl: String?, hosterData: String): Video? {
+        val (type, id) = hosterData.split("-", limit = 2)
+        val videoData = VideoData(
+            type = type,
+            id = id,
+            videoHash = behaviorHints?.videoHash,
+            videoSize = behaviorHints?.videoSize,
+            filename = behaviorHints?.filename,
+        )
+
         val headers = behaviorHints?.proxyHeaders?.request?.toHeaders()
 
         val videoName = buildString {
@@ -194,7 +204,7 @@ data class StreamDto(
                 videoTitle = videoName,
                 videoUrl = url,
                 headers = headers,
-                subtitleTracks = subtitleList,
+                internalData = videoData.toJsonString(),
             )
         }
 
@@ -213,7 +223,7 @@ data class StreamDto(
                     append("magnet:?xt=urn:btih:$infoHash")
 
                     sources?.forEach { tracker ->
-                        append("&tr=${URLEncoder.encode(tracker, "UTF-8")}")
+                        append("&tr=${tracker.urlEncode()}")
                     }
 
                     if (fileIdx?.equals(-1)?.not() == true) {
@@ -225,7 +235,7 @@ data class StreamDto(
             return Video(
                 videoTitle = videoName,
                 videoUrl = url,
-                subtitleTracks = subtitleList,
+                internalData = videoData.toJsonString(),
             )
         }
 
@@ -235,6 +245,9 @@ data class StreamDto(
     @Serializable
     data class BehaviorHintDto(
         val proxyHeaders: ProxyHeaderDto? = null,
+        val filename: String? = null,
+        val videoHash: String? = null,
+        val videoSize: Long? = null,
     ) {
         @Serializable
         data class ProxyHeaderDto(
@@ -242,3 +255,12 @@ data class StreamDto(
         )
     }
 }
+
+@Serializable
+data class VideoData(
+    val type: String,
+    val id: String,
+    val videoHash: String? = null,
+    val videoSize: Long? = null,
+    val filename: String? = null,
+)

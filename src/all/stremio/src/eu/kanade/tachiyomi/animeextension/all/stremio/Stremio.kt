@@ -13,7 +13,6 @@ import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.Hoster
-import eu.kanade.tachiyomi.animesource.model.Hoster.Companion.toHosterList
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Track
@@ -44,7 +43,6 @@ import org.apache.commons.text.StringSubstitutor
 import kotlin.collections.any
 import kotlin.collections.orEmpty
 
-@Suppress("SpellCheckingInspection")
 class Stremio : Source() {
     override val migration: SharedPreferences.() -> Unit = {
         val addons = getString(ADDONS_KEY, ADDONS_DEFAULT)!!
@@ -534,18 +532,11 @@ class Stremio : Source() {
     // ============================ Video Links =============================
 
     override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
-        return getVideoList(episode).toHosterList()
-    }
-
-    private suspend fun getVideoList(episode: SEpisode): List<Video> {
         val (type, id) = episode.url.split("-", limit = 2)
-
-        val subtitles = getSubtitleList(type, id)
-        val serverUrl = preferences.serverUrl.takeIf { it.isNotEmpty() }
 
         return addons
             .filter { it.manifest.isValidResource(AddonResource.STREAM, type, id) }
-            .parallelCatchingFlatMap { addon ->
+            .map { addon ->
                 val url = addon.getTransportUrl().newBuilder().apply {
                     addPathSegment("stream")
                     addPathSegment(type)
@@ -553,22 +544,58 @@ class Stremio : Source() {
                 }.build().toString() +
                     ".json"
 
-                client.get(url, headers)
-                    .parseAs<StreamResultDto>()
-                    .streams
-                    .map { v -> v.toVideo(serverUrl, subtitles) }
+                Hoster(
+                    hosterUrl = url,
+                    hosterName = addon.manifest.name,
+                    internalData = episode.url,
+                )
             }
-            .filterNotNull()
     }
 
-    private suspend fun getSubtitleList(type: String, id: String): List<Track> {
+    override suspend fun getVideoList(hoster: Hoster): List<Video> {
+        val serverUrl = preferences.serverUrl.takeIf { it.isNotEmpty() }
+
+        return client.get(hoster.hosterUrl, headers)
+            .parseAs<StreamResultDto>()
+            .streams.mapNotNull { v -> v.toVideo(serverUrl, hoster.internalData) }
+    }
+
+    override suspend fun resolveVideo(video: Video): Video? {
+        val data = video.internalData.parseAs<VideoData>()
+        val subtitleList = getSubtitleList(data)
+
+        return Video(
+            videoUrl = video.videoUrl,
+            videoTitle = video.videoTitle,
+            headers = video.headers,
+            subtitleTracks = subtitleList,
+        )
+    }
+
+    private suspend fun getSubtitleList(videoData: VideoData): List<Track> {
         return addons
-            .filter { it.manifest.isValidResource(AddonResource.SUBTITLES, type, id) }
+            .filter { it.manifest.isValidResource(AddonResource.SUBTITLES, videoData.type, videoData.id) }
             .parallelCatchingFlatMap { addon ->
+                val hints = buildList(3) {
+                    videoData.videoHash?.let {
+                        add("videoHash=${it.urlEncode()}")
+                    }
+                    videoData.videoSize?.let {
+                        add("videoSize=$it")
+                    }
+                    videoData.filename?.let {
+                        add("filename=${it.urlEncode()}")
+                    }
+                }.joinToString("&")
+
                 val url = addon.getTransportUrl().newBuilder().apply {
                     addPathSegment("subtitles")
-                    addPathSegment(type)
-                    addPathSegment(id)
+                    addPathSegment(videoData.type)
+                    addPathSegment(videoData.id)
+
+                    if (hints.isNotEmpty()) {
+                        addPathSegment(hints)
+                    }
                 }.build().toString() +
                     ".json"
 
@@ -606,6 +633,7 @@ class Stremio : Source() {
         private const val PREF_FETCH_LIBRARY_KEY = "pref_fetch_library"
         private const val PREF_FETCH_LIBRARY_DEFAULT = false
 
+        @Suppress("SpellCheckingInspection")
         const val AUTHKEY_KEY = ""
 
         private val SUBSTITUTE_VALUES = mapOf(

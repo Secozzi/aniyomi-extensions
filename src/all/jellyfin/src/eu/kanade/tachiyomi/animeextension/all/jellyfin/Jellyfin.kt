@@ -59,7 +59,6 @@ import java.io.IOException
 import java.security.MessageDigest
 import kotlin.getValue
 
-@Suppress("SpellCheckingInspection")
 class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     override val json: Json by lazy {
         Json {
@@ -952,7 +951,8 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             title = "Preferred quality",
             summary = "Preferred quality. 'Source' means no transcoding.",
             entries = listOf("Source") + Constants.QUALITIES_LIST.reversed().map { it.description },
-            entryValues = listOf(PREF_QUALITY_DEFAULT) + Constants.QUALITIES_LIST.reversed().map { it.videoBitrate.toString() },
+            entryValues =
+            listOf(PREF_QUALITY_DEFAULT) + Constants.QUALITIES_LIST.reversed().map { it.videoBitrate.toString() },
         )
 
         screen.addEditTextPreference(

@@ -1,5 +1,3 @@
-@file:Suppress("unused")
-
 package extensions.utils
 
 // From https://github.com/keiyoushi/extensions-source/blob/main/core/src/main/kotlin/keiyoushi/utils/Json.kt
