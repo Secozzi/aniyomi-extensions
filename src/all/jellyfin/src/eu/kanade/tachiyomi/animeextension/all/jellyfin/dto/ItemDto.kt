@@ -2,12 +2,12 @@ package eu.kanade.tachiyomi.animeextension.all.jellyfin.dto
 
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.formatBytes
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.getImageUrl
+import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.apache.commons.text.StringSubstitutor
-import org.jsoup.Jsoup
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -63,14 +63,18 @@ data class ItemDto(
 
     // =============================== Anime ================================
 
-    fun toSAnime(baseUrl: String, userId: String): SAnime = SAnime.create().apply {
+    fun toSAnime(baseUrl: String, userId: String, concatenateNames: Boolean): SAnime = SAnime.create().apply {
         val typeMap = mapOf(
-            ItemType.Season to "seriesId,$seriesId",
+            ItemType.Season to "season,$seriesId",
             ItemType.Movie to "movie",
             ItemType.BoxSet to "boxSet",
             ItemType.Series to "series",
         )
-
+        fetch_type = when (type) {
+            ItemType.BoxSet, ItemType.Series -> FetchType.Seasons
+            ItemType.Movie, ItemType.Season -> FetchType.Episodes
+            else -> FetchType.Unknown
+        }
         url = baseUrl.toHttpUrl().newBuilder().apply {
             addPathSegment("Users")
             addPathSegment(userId)
@@ -80,13 +84,10 @@ data class ItemDto(
         }.build().toString()
         thumbnail_url = imageTags.primary?.getImageUrl(baseUrl, id)
         title = name
-        description = overview?.let {
-            Jsoup.parseBodyFragment(
-                it.replace("<br>", "br2n"),
-            ).text().replace("br2n", "\n")
-        }
+        description = overview?.let(::convertHtml)
         genre = genres?.joinToString(", ")
         author = studios?.joinToString(", ") { it.name }
+        season_number = indexNumber?.toDouble() ?: -1.0
 
         status = if (type == ItemType.Movie) {
             SAnime.COMPLETED
@@ -101,7 +102,13 @@ data class ItemDto(
                     thumbnail_url = seriesPrimaryImageTag?.getImageUrl(baseUrl, it)
                 }
             } else {
-                title = "$seriesName $name"
+                title = buildString {
+                    if (concatenateNames) {
+                        append(seriesName)
+                        append(" ")
+                    }
+                    append(name)
+                }
             }
 
             // Use series image as fallback
@@ -111,6 +118,16 @@ data class ItemDto(
                 }
             }
         }
+    }
+
+    private fun convertHtml(html: String): String {
+        var markdown = html
+        markdown = BOLD_REGEX.replace(markdown, "**$2**")
+        markdown = ITALICS_REGEX.replace(markdown, "*$2*")
+        markdown = BREAK_REGEX.replace(markdown, "\n")
+        markdown = HORIZONTAL_RULE_REGEX.replace(markdown, "\n---\n")
+        markdown = TAG_REGEX.replace(markdown, "")
+        return markdown
     }
 
     private fun String?.parseStatus(): Int = when (this?.lowercase()) {
@@ -124,19 +141,13 @@ data class ItemDto(
     fun toSEpisode(
         baseUrl: String,
         userId: String,
-        prefix: String,
         epDetails: Set<String>,
         episodeTemplate: String,
     ): SEpisode = SEpisode.create().apply {
         val runtimeInSec = runTimeTicks?.div(10_000_000)
         val size = mediaSources?.first()?.size?.formatBytes()
         val runTime = runtimeInSec?.formatSeconds()
-        val title = buildString {
-            append(prefix)
-            if (type != ItemType.Movie) {
-                append(this@ItemDto.name)
-            }
-        }
+        val title = if (type == ItemType.Movie) "" else this@ItemDto.name
 
         val values = mapOf(
             "title" to title,
@@ -205,6 +216,12 @@ data class ItemDto(
     }
 
     companion object {
+        private val BOLD_REGEX = Regex("""<(b|strong)>(.*?)</\1>""", RegexOption.IGNORE_CASE)
+        private val ITALICS_REGEX = Regex("""<(i|em)>(.*?)</\1>""", RegexOption.IGNORE_CASE)
+        private val BREAK_REGEX = Regex("""br\s*/?>""", RegexOption.IGNORE_CASE)
+        private val HORIZONTAL_RULE_REGEX = Regex("""<hr\s*/?>""", RegexOption.IGNORE_CASE)
+        private val TAG_REGEX = Regex("""<[^>]*>""", RegexOption.IGNORE_CASE)
+
         @Suppress("SpellCheckingInspection")
         private val FORMATTER_DATE_TIME = SimpleDateFormat(
             "yyyy-MM-dd'T'HH:mm:ss.SSSSSSS",

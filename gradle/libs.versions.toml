@@ -14,7 +14,7 @@ gradle-kotlin-serialization = { module = "org.jetbrains.kotlin:kotlin-serializat
 spotless-gradle = { group = "com.diffplug.spotless", name = "spotless-plugin-gradle", version.ref = "spotless" }
 ktlint-core = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint-core" }
 
-aniyomi-lib = { module = "com.github.aniyomiorg:extensions-lib", version = "16-rc1" }
+aniyomi-lib = { module = "com.github.aniyomiorg:extensions-lib", version = "16-rc2" }
 
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.ref = "kotlin_version" }
 kotlin-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization_version" }
@@ -23,8 +23,7 @@ coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", ve
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines_version" }
 
 injekt-core = { module = "com.github.mihonapp:injekt", version = "91edab2317" }
-jsoup = { module = "org.jsoup:jsoup", version = "1.21.1" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version = "5.1.0" }
 
 [bundles]
-common = ["kotlin-stdlib", "injekt-core", "kotlin-json", "jsoup", "okhttp", "aniyomi-lib", "coroutines-core", "coroutines-android"]
+common = ["kotlin-stdlib", "injekt-core", "kotlin-json", "okhttp", "aniyomi-lib", "coroutines-core", "coroutines-android"]
