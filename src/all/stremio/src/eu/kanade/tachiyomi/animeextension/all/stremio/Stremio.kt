@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.ExtraType
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
+import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
@@ -155,7 +156,7 @@ class Stremio : Source() {
         )
 
         val data = response.parseAs<CatalogListDto>()
-        val entries = data.metas.map { it.toSAnime() }
+        val entries = data.metas.map { it.toSAnime(preferences.splitSeasons) }
 
         if (page == 1) {
             nextSkip = entries.size
@@ -441,7 +442,7 @@ class Stremio : Source() {
 
         validAddons.forEach { addon ->
             getMeta(addon, type, id)?.let {
-                return it.toSAnime()
+                return it.toSAnime(preferences.splitSeasons)
             }
         }
 
@@ -475,8 +476,59 @@ class Stremio : Source() {
             .build().toString()
     }
 
+    override suspend fun getSeasonList(anime: SAnime): List<SAnime> {
+        val animeUrl = if (anime.url.first().let { it.isDigit() || it == '#' }) {
+            anime.url
+        } else {
+            "#-${anime.url}"
+        }
+
+        val (_, type, id) = animeUrl.split("-", limit = 3)
+
+        val validAddons = addons.filter {
+            it.manifest.isValidResource(AddonResource.META, type, id)
+        }
+
+        validAddons.forEach { addon ->
+            getMeta(addon, type, id)?.let { meta ->
+                meta.videos?.takeIf { it.isNotEmpty() }?.let { videos ->
+                    return videos.distinctBy { it.season }.map {
+                        SAnime.create().apply {
+                            title = buildString {
+                                if (preferences.concatNames) {
+                                    append(anime.title)
+                                    append(" ")
+                                }
+                                append("Season ")
+                                append(it.season ?: 0)
+                            }
+                            url = "$type-${it.season ?: 0}-$id"
+                            season_number = it.season?.toDouble() ?: 0.0
+                            fetch_type = FetchType.Episodes
+
+                            thumbnail_url = anime.thumbnail_url
+                            genre = anime.genre
+                            author = anime.author
+                            artist = anime.artist
+                            description = anime.description
+                            status = anime.status
+                        }
+                    }
+                }
+            }
+        }
+
+        return emptyList()
+    }
+
     override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
-        val (type, id) = anime.url.split("-", limit = 2)
+        val animeUrl = if (anime.url.first().let { it.isDigit() || it == '#' }) {
+            anime.url
+        } else {
+            "#-${anime.url}"
+        }
+
+        val (season, type, id) = animeUrl.split("-", limit = 3)
 
         if (type.equals("movie", true)) {
             return listOf(
@@ -492,7 +544,6 @@ class Stremio : Source() {
             it.manifest.isValidResource(AddonResource.META, type, id)
         }
 
-        val skipSeason0 = preferences.skipSeason0
         val nameTemplate = preferences.nameTemplate
         val scanlatorTemplate = preferences.scanlatorTemplate
 
@@ -512,8 +563,13 @@ class Stremio : Source() {
 
                 // Other
                 meta.videos?.takeIf { it.isNotEmpty() }?.let { videos ->
-                    return videos
-                        .filterNot { skipSeason0 && it.season == 0 }
+                    val episodeData = if (season == "#") {
+                        videos
+                    } else {
+                        videos.filter { it.season == season.toInt() }
+                    }
+
+                    return episodeData
                         .sortedWith(
                             compareBy(
                                 { it.season ?: 1 },
@@ -564,10 +620,7 @@ class Stremio : Source() {
         val data = video.internalData.parseAs<VideoData>()
         val subtitleList = getSubtitleList(data)
 
-        return Video(
-            videoUrl = video.videoUrl,
-            videoTitle = video.videoTitle,
-            headers = video.headers,
+        return video.copy(
             subtitleTracks = subtitleList,
         )
     }
@@ -627,8 +680,11 @@ class Stremio : Source() {
         private const val PASSWORD_KEY = "password"
         private const val PASSWORD_DEFAULT = ""
 
-        private const val PREF_SKIP_SEASON_0_KEY = "pref_skip_season_0"
-        private const val PREF_SKIP_SEASON_0_DEFAULT = false
+        private const val PREF_SPLIT_SEASONS_KEY = "pref_split_seasons"
+        private const val PREF_SPLIT_SEASONS_DEFAULT = true
+
+        private const val PREF_CONCAT_NAMES_KEY = "pref_concatenate_names"
+        private const val PREF_CONCAT_NAMES_DEFAULT = true
 
         private const val PREF_FETCH_LIBRARY_KEY = "pref_fetch_library"
         private const val PREF_FETCH_LIBRARY_DEFAULT = false
@@ -679,9 +735,13 @@ class Stremio : Source() {
         PREF_SCANLATOR_NAME_TEMPLATE_KEY,
         PREF_SCANLATOR_NAME_TEMPLATE_DEFAULT,
     )
-    private val SharedPreferences.skipSeason0 by preferences.delegate(
-        PREF_SKIP_SEASON_0_KEY,
-        PREF_SKIP_SEASON_0_DEFAULT,
+    private val SharedPreferences.splitSeasons by preferences.delegate(
+        PREF_SPLIT_SEASONS_KEY,
+        PREF_SPLIT_SEASONS_DEFAULT,
+    )
+    private val SharedPreferences.concatNames by preferences.delegate(
+        PREF_CONCAT_NAMES_KEY,
+        PREF_CONCAT_NAMES_DEFAULT,
     )
     private val SharedPreferences.fetchLibrary by preferences.delegate(
         PREF_FETCH_LIBRARY_KEY,
@@ -904,10 +964,17 @@ class Stremio : Source() {
         )
 
         screen.addSwitchPreference(
-            key = PREF_SKIP_SEASON_0_KEY,
-            default = PREF_SKIP_SEASON_0_DEFAULT,
-            title = "Skip season 0",
-            summary = "Filter out specials",
+            key = PREF_SPLIT_SEASONS_KEY,
+            default = PREF_SPLIT_SEASONS_DEFAULT,
+            title = "Split seasons",
+            summary = "Split seasons into its own entry",
+        )
+
+        screen.addSwitchPreference(
+            key = PREF_CONCAT_NAMES_KEY,
+            default = PREF_CONCAT_NAMES_DEFAULT,
+            title = "Concatenate series and season names",
+            summary = ""
         )
 
         screen.addPreference(logOutPref)

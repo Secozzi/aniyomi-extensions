@@ -2,6 +2,7 @@
 
 package eu.kanade.tachiyomi.animeextension.all.stremio
 
+import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
@@ -57,9 +58,9 @@ data class MetaDto(
     // Tv
     val streams: List<StreamDto>? = null,
 ) {
-    fun toSAnime(): SAnime = SAnime.create().apply {
+    fun toSAnime(splitSeasons: Boolean): SAnime = SAnime.create().apply {
         title = name
-        url = "$type-$id"
+        url = "#-$type-$id"
         thumbnail_url = poster
 
         genre = genres?.joinToString()
@@ -79,6 +80,12 @@ data class MetaDto(
             } else {
                 SAnime.ONGOING
             }
+        }
+
+        fetch_type = if (type.equals("movie", true) || !splitSeasons) {
+            FetchType.Episodes
+        } else {
+            FetchType.Seasons
         }
     }
 }
