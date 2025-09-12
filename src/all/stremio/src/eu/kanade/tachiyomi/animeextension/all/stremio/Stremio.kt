@@ -502,7 +502,7 @@ class Stremio : Source() {
                                 append("Season ")
                                 append(it.season ?: 0)
                             }
-                            url = "$type-${it.season ?: 0}-$id"
+                            url = "${it.season ?: 0}-$type-$id"
                             season_number = it.season?.toDouble() ?: 0.0
                             fetch_type = FetchType.Episodes
 
