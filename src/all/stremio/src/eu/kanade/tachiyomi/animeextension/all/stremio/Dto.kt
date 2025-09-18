@@ -44,6 +44,7 @@ data class MetaDto(
     val type: String,
     val name: String,
     val poster: String? = null,
+    val background: String? = null,
 
     // Details
     val description: String? = null,
@@ -62,6 +63,7 @@ data class MetaDto(
         title = name
         url = "#-$type-$id"
         thumbnail_url = poster
+        background_url = background ?: poster
 
         genre = genres?.joinToString()
         author = director?.take(5)?.joinToString()
@@ -129,6 +131,7 @@ data class VideoDto(
     val season: Int? = null,
     val description: String? = null,
     val overview: String? = null,
+    val thumbnail: String? = null,
 ) {
     fun toSEpisode(
         episodeTemplate: String,
@@ -146,6 +149,8 @@ data class VideoDto(
         url = "$type-$id"
         name = sub.replace(episodeTemplate).trim()
         scanlator = sub.replace(scanlatorTemplate).trim().takeIf { it.isNotBlank() }
+        summary = description ?: overview
+        preview_url = thumbnail
         episode_number = episode?.toFloat() ?: 1F
         date_upload = DATE_FORMAT.tryParse(released)
     }

@@ -426,7 +426,7 @@ class Stremio : Source() {
     // =========================== Anime Details ============================
 
     override fun getAnimeUrl(anime: SAnime): String {
-        val (type, id) = anime.url.split("-", limit = 2)
+        val (_, type, id) = anime.url.getUrlParts()
 
         return baseUrl.toHttpUrl().newBuilder()
             .fragment("/detail/$type/$id")
@@ -434,7 +434,7 @@ class Stremio : Source() {
     }
 
     override suspend fun getAnimeDetails(anime: SAnime): SAnime {
-        val (type, id) = anime.url.split("-", limit = 2)
+        val (_, type, id) = anime.url.getUrlParts()
 
         val validAddons = addons.filter {
             it.manifest.isValidResource(AddonResource.META, type, id)
@@ -468,7 +468,7 @@ class Stremio : Source() {
     // ============================== Episodes ==============================
 
     override fun getEpisodeUrl(episode: SEpisode): String {
-        val (type, id) = episode.url.split("-", limit = 2)
+        val (_, type, id) = episode.url.getUrlParts()
         val entryId = id.substringBefore(":")
 
         return baseUrl.toHttpUrl().newBuilder()
@@ -477,13 +477,7 @@ class Stremio : Source() {
     }
 
     override suspend fun getSeasonList(anime: SAnime): List<SAnime> {
-        val animeUrl = if (anime.url.first().let { it.isDigit() || it == '#' }) {
-            anime.url
-        } else {
-            "#-${anime.url}"
-        }
-
-        val (_, type, id) = animeUrl.split("-", limit = 3)
+        val (_, type, id) = anime.url.getUrlParts()
 
         val validAddons = addons.filter {
             it.manifest.isValidResource(AddonResource.META, type, id)
@@ -522,13 +516,7 @@ class Stremio : Source() {
     }
 
     override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
-        val animeUrl = if (anime.url.first().let { it.isDigit() || it == '#' }) {
-            anime.url
-        } else {
-            "#-${anime.url}"
-        }
-
-        val (season, type, id) = animeUrl.split("-", limit = 3)
+        val (season, type, id) = anime.url.getUrlParts()
 
         if (type.equals("movie", true)) {
             return listOf(
@@ -588,7 +576,7 @@ class Stremio : Source() {
     // ============================ Video Links =============================
 
     override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
-        val (type, id) = episode.url.split("-", limit = 2)
+        val (_, type, id) = episode.url.getUrlParts()
 
         return addons
             .filter { it.manifest.isValidResource(AddonResource.STREAM, type, id) }
@@ -660,6 +648,16 @@ class Stremio : Source() {
     }
 
     // ============================= Utilities ==============================
+
+    private fun String.getUrlParts(): List<String> {
+        val url = if (this.first().let { it.isDigit() || it == '#' }) {
+            this
+        } else {
+            "#-$this"
+        }
+
+        return url.split("-", limit = 3)
+    }
 
     companion object {
         const val API_URL = "https://api.strem.io"
