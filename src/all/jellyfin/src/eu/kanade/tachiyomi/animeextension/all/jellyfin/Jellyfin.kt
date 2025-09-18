@@ -433,7 +433,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
         return sessionData.mediaSources.firstOrNull()?.transcodingUrl?.let {
             video.copy(
-                videoUrl = baseUrl + it
+                videoUrl = baseUrl + it,
             )
         }
     }
@@ -663,7 +663,10 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     private val SharedPreferences.subLang by preferences.delegate(PREF_SUB_KEY, PREF_SUB_DEFAULT)
     private val SharedPreferences.burnSub by preferences.delegate(PREF_BURN_SUB_KEY, PREF_BURN_SUB_DEFAULT)
     private val SharedPreferences.seriesData by preferences.delegate(PREF_INFO_TYPE, PREF_INFO_DEFAULT)
-    private val SharedPreferences.concatNames by preferences.delegate(PREF_CONCATENATE_NAMES_KEY, PREF_CONCATENATE_NAMES_DEFAULT)
+    private val SharedPreferences.concatNames by preferences.delegate(
+        PREF_CONCATENATE_NAMES_KEY,
+        PREF_CONCATENATE_NAMES_DEFAULT,
+    )
 
     private fun clearCredentials() {
         preferences.libraryList = "[]"

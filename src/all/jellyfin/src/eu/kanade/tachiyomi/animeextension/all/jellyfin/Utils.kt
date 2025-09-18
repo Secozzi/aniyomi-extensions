@@ -43,12 +43,13 @@ fun Long.formatBytes(): String = when {
     else -> ""
 }
 
-fun String.getImageUrl(baseUrl: String, id: String): String {
+fun String.getImageUrl(baseUrl: String, id: String, name: String = "Primary", index: Int? = null): String {
     return baseUrl.toHttpUrl().newBuilder().apply {
         addPathSegment("Items")
         addPathSegment(id)
         addPathSegment("Images")
-        addPathSegment("Primary")
+        addPathSegment(name)
+        index?.let { addPathSegment(it.toString()) }
         addQueryParameter("tag", this@getImageUrl)
     }.build().toString()
 }

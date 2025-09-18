@@ -49,6 +49,8 @@ abstract class Source : ConfigurableAnimeSource, AnimeHttpSource() {
     override fun animeDetailsParse(response: Response) = throw UnsupportedOperationException()
     override fun episodeListRequest(anime: SAnime) = throw UnsupportedOperationException()
     override fun episodeListParse(response: Response) = throw UnsupportedOperationException()
+    override fun seasonListRequest(anime: SAnime) = throw UnsupportedOperationException()
+    override fun seasonListParse(response: Response) = throw UnsupportedOperationException()
     override fun hosterListRequest(episode: SEpisode) = throw UnsupportedOperationException()
     override fun hosterListParse(response: Response) = throw UnsupportedOperationException()
     override fun videoListRequest(hoster: Hoster) = throw UnsupportedOperationException()

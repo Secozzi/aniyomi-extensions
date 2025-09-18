@@ -35,6 +35,9 @@ data class ItemDto(
     val seriesName: String? = null,
     val seasonName: String? = null,
     val seriesPrimaryImageTag: String? = null,
+    val backdropImageTags: List<String>? = null,
+    val parentBackdropItemId: String? = null,
+    val parentBackdropImageTags: List<String>? = null,
 
     // Anime Details
     val status: String? = null,
@@ -83,6 +86,15 @@ data class ItemDto(
             fragment(typeMap[type])
         }.build().toString()
         thumbnail_url = imageTags.primary?.getImageUrl(baseUrl, id)
+        background_url = when {
+            backdropImageTags?.firstOrNull() != null -> {
+                backdropImageTags.first().getImageUrl(baseUrl, id, "Backdrop", 0)
+            }
+            parentBackdropImageTags?.firstOrNull() != null && parentBackdropItemId != null -> {
+                parentBackdropImageTags.first().getImageUrl(baseUrl, parentBackdropItemId, "Backdrop", 0)
+            }
+            else -> thumbnail_url
+        }
         title = name
         description = overview?.let(::convertHtml)
         genre = genres?.joinToString(", ")
@@ -184,6 +196,8 @@ data class ItemDto(
             .trim()
         url = "$baseUrl/Users/$userId/Items/$id"
         scanlator = extraInfo.joinToString(" • ")
+        summary = overview?.let(::convertHtml)
+        preview_url = imageTags.primary?.getImageUrl(baseUrl, id)
         premiereDate?.let {
             date_upload = parseDateTime(it.removeSuffix("Z"))
         }
@@ -218,7 +232,7 @@ data class ItemDto(
     companion object {
         private val BOLD_REGEX = Regex("""<(b|strong)>(.*?)</\1>""", RegexOption.IGNORE_CASE)
         private val ITALICS_REGEX = Regex("""<(i|em)>(.*?)</\1>""", RegexOption.IGNORE_CASE)
-        private val BREAK_REGEX = Regex("""br\s*/?>""", RegexOption.IGNORE_CASE)
+        private val BREAK_REGEX = Regex("""<br\s*/?>""", RegexOption.IGNORE_CASE)
         private val HORIZONTAL_RULE_REGEX = Regex("""<hr\s*/?>""", RegexOption.IGNORE_CASE)
         private val TAG_REGEX = Regex("""<[^>]*>""", RegexOption.IGNORE_CASE)
 

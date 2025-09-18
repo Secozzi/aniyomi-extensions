@@ -974,7 +974,7 @@ class Stremio : Source() {
             key = PREF_CONCAT_NAMES_KEY,
             default = PREF_CONCAT_NAMES_DEFAULT,
             title = "Concatenate series and season names",
-            summary = ""
+            summary = "",
         )
 
         screen.addPreference(logOutPref)
