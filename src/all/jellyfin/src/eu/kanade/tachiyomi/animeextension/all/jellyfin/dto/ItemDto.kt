@@ -60,7 +60,7 @@ data class ItemDto(
     )
 
     @Serializable
-    class StudioDto(
+    data class StudioDto(
         val name: String,
     )
 
@@ -90,9 +90,11 @@ data class ItemDto(
             backdropImageTags?.firstOrNull() != null -> {
                 backdropImageTags.first().getImageUrl(baseUrl, id, "Backdrop", 0)
             }
+
             parentBackdropImageTags?.firstOrNull() != null && parentBackdropItemId != null -> {
                 parentBackdropImageTags.first().getImageUrl(baseUrl, parentBackdropItemId, "Backdrop", 0)
             }
+
             else -> thumbnail_url
         }
         title = name

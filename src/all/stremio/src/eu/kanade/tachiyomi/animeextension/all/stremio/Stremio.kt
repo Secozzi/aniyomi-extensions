@@ -307,7 +307,7 @@ class Stremio : Source() {
     private suspend fun fetchLibrary() {
         if (filtersState == FilterState.Unfetched && filterAttempts < 3) {
             filtersState = FilterState.Fetching
-            filterAttempts
+            filterAttempts++
 
             try {
                 val body = buildJsonObject {

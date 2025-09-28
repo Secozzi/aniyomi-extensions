@@ -8,6 +8,7 @@ import android.text.InputType
 import android.util.Log
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animeextension.BuildConfig
+import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.FiltersDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.ItemDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.ItemListDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.ItemType
@@ -16,6 +17,7 @@ import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.MediaLibraryDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.PlaybackInfoDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.SessionDto
 import eu.kanade.tachiyomi.animesource.UnmeteredSource
+import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.Hoster
@@ -153,14 +155,243 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         filters: AnimeFilterList,
     ): AnimesPage {
         checkPreferences()
+        val filterList = filters.ifEmpty { getFilterList() }
+        filterList.filterIsInstance<TypeFilter>().first().let {
+            itemTypes = it.state.filter { s -> s.state }.map { s -> s.id }
+            if (preferences.saveTypes) {
+                preferences.saveTypesValue = json.encodeToString<List<ItemType>>(itemTypes)
+            }
+        }
 
         val startIndex = (page - 1) * SERIES_FETCH_LIMIT
-        val url = getItemsUrl(startIndex).newBuilder().apply {
-            setQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
-            setQueryParameter("SearchTerm", query)
-        }.build()
+        val url = if (query.isNotBlank()) {
+            getItemsUrl(startIndex).newBuilder().apply {
+                setQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
+                setQueryParameter("SearchTerm", query)
+            }.build()
+        } else {
+            baseUrl.toHttpUrl().newBuilder().apply {
+                addPathSegment("Users")
+                addPathSegment(preferences.userId)
+                addPathSegment("Items")
+                addQueryParameter("StartIndex", startIndex.toString())
+                addQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
+                addQueryParameter("Recursive", "true")
+                addQueryParameter("ImageTypeLimit", "1")
+                addQueryParameter("ParentId", preferences.selectedLibrary)
+                addQueryParameter("EnableImageTypes", "Primary")
 
+                filterList.filterIsInstance<UrlFilter>().forEach {
+                    it.addToUrl(this)
+                }
+            }.build()
+        }
         return getAnimePage(url, page)
+    }
+
+    // ============================== Filters ===============================
+
+    interface UrlFilter {
+        fun addToUrl(url: HttpUrl.Builder)
+    }
+
+    class CheckboxFilter<T>(
+        name: String,
+        val id: T,
+        state: Boolean = false,
+    ) : AnimeFilter.CheckBox(name, state)
+
+    open class CheckboxListFilter<T>(
+        name: String,
+        values: List<CheckboxFilter<T>>,
+        val queryParam: String,
+        val querySeparator: String = ",",
+        val transform: (T) -> String = { it.toString() },
+    ) : AnimeFilter.Group<CheckboxFilter<T>>(name, values), UrlFilter {
+        override fun addToUrl(url: HttpUrl.Builder) {
+            val selected = state.filter { it.state }
+
+            if (selected.isNotEmpty()) {
+                url.addQueryParameter(
+                    queryParam,
+                    selected.joinToString(querySeparator) { transform(it.id) },
+                )
+            }
+        }
+    }
+
+    class TypeFilter(selected: List<ItemType>) : CheckboxListFilter<ItemType>(
+        "Select type(s)",
+        listOf(
+            CheckboxFilter("Movies", ItemType.Movie, ItemType.Movie in selected),
+            CheckboxFilter("Series", ItemType.Series, ItemType.Series in selected),
+            CheckboxFilter("Seasons", ItemType.Season, ItemType.Season in selected),
+            CheckboxFilter("Collections", ItemType.BoxSet, ItemType.BoxSet in selected),
+        ),
+        "IncludeItemTypes",
+        transform = { it.name },
+    )
+
+    class SortFilter :
+        AnimeFilter.Sort(
+            "Sort by",
+            sortList.map { it.first }.toTypedArray(),
+            Selection(0, true),
+        ),
+        UrlFilter {
+        override fun addToUrl(url: HttpUrl.Builder) {
+            val value = sortList[state!!.index].second
+            val order = if (state!!.ascending) "Ascending" else "Descending"
+
+            url.addQueryParameter("SortBy", value)
+            url.addQueryParameter("SortOrder", order)
+        }
+
+        companion object {
+            private val sortList = listOf(
+                "Name" to "SortName",
+                "Random" to "Random",
+                "Community Rating" to "CommunityRating,SortName",
+                "Date Show Added" to "DateCreated,SortName",
+                "Date Episode Added" to "DateLastContentAdded,SortName",
+                "Date Played" to "SeriesDatePlayed,SortName",
+                "Parental Rating" to "OfficialRating,SortName",
+                "Release Date" to "PremiereDate,SortName",
+            )
+        }
+    }
+
+    class FilterFilter : CheckboxListFilter<String>(
+        "Filters",
+        listOf(
+            CheckboxFilter("Played", "IsPlayed"),
+            CheckboxFilter("Unplayed", "IsUnPlayed"),
+            CheckboxFilter("Resumable", "IsResumable"),
+            CheckboxFilter("Favorites", "IsFavorite"),
+        ),
+        "Filters",
+    )
+
+    class StatusFilter : CheckboxListFilter<String>(
+        "Status",
+        listOf(
+            CheckboxFilter("Continuing", "Continuing"),
+            CheckboxFilter("Ended", "Ended"),
+            CheckboxFilter("Not yet released", "Unreleased"),
+        ),
+        "SeriesStatus",
+    )
+
+    class FeaturesFilter : CheckboxListFilter<String>(
+        "Features",
+        listOf(
+            CheckboxFilter("Subtitles", "HasSubtitles"),
+            CheckboxFilter("Trailer", "HasTrailer"),
+            CheckboxFilter("Special Features", "HasSpecialFeature"),
+            CheckboxFilter("Theme song", "HasThemeSong"),
+            CheckboxFilter("Theme video", "HasThemeVideo"),
+        ),
+        "unused",
+    ) {
+        override fun addToUrl(url: HttpUrl.Builder) {
+            state.filter { it.state }.forEach {
+                url.addQueryParameter(it.id, "true")
+            }
+        }
+    }
+
+    class GenreFilter(genres: List<String>) : CheckboxListFilter<String>(
+        "Genres",
+        genres.map { CheckboxFilter(it, it) },
+        "Genres",
+        querySeparator = "|",
+    )
+
+    class RatingFilter(ratings: List<String>) : CheckboxListFilter<String>(
+        "Parental Ratings",
+        ratings.map { CheckboxFilter(it, it) },
+        "OfficialRatings",
+        querySeparator = "|",
+    )
+
+    class TagFilter(tags: List<String>) : CheckboxListFilter<String>(
+        "Tags",
+        tags.map { CheckboxFilter(it, it) },
+        "Tags",
+        querySeparator = "|",
+    )
+
+    class YearFilter(years: List<Int>) : CheckboxListFilter<Int>(
+        "Years",
+        years.map { CheckboxFilter(it.toString(), it) },
+        "Years",
+    )
+
+    private var itemTypes by LazyMutable {
+        if (preferences.saveTypes) {
+            json.decodeFromString<List<ItemType>>(preferences.saveTypesValue)
+        } else {
+            listOf(ItemType.Movie, ItemType.Series, ItemType.BoxSet)
+        }
+    }
+    private var filterResult: FiltersDto? = null
+    private var filtersState = FilterState.Unfetched
+    private var filterAttempts = 0
+
+    private enum class FilterState {
+        Fetching,
+        Fetched,
+        Unfetched,
+    }
+
+    private suspend fun getFilters() {
+        if (filtersState != FilterState.Fetching && filterAttempts < 3) {
+            filtersState = FilterState.Fetching
+            filterAttempts++
+
+            try {
+                val url = baseUrl.toHttpUrl().newBuilder().apply {
+                    addPathSegment("Items")
+                    addPathSegment("Filters")
+                    addQueryParameter("UserId", preferences.userId)
+                    addQueryParameter("ParentId", preferences.selectedLibrary)
+                    addQueryParameter("IncludeItemTypes", itemTypes.joinToString(",") { it.name })
+                }.build()
+
+                filterResult = client.get(url).parseAs<FiltersDto>()
+                filtersState = FilterState.Fetched
+                filterAttempts = 0
+            } catch (e: Exception) {
+                Log.e(LOG_TAG, "Failed to fetch filters", e)
+                filtersState = FilterState.Unfetched
+            }
+        }
+    }
+
+    override fun getFilterList(): AnimeFilterList {
+        CoroutineScope(Dispatchers.IO).launch { getFilters() }
+
+        val filters = buildList<AnimeFilter<*>> {
+            add(AnimeFilter.Header("Note: search ignores all filters except selected type(s)"))
+            add(TypeFilter(itemTypes))
+            add(AnimeFilter.Separator())
+            add(SortFilter())
+
+            add(FilterFilter())
+            add(StatusFilter())
+            add(FeaturesFilter())
+
+            add(AnimeFilter.Separator())
+            add(AnimeFilter.Header("Press 'reset' after searching to set filters for selected type(s)"))
+            filterResult?.let { f ->
+                f.genres?.takeIf { it.isNotEmpty() }?.let { add(GenreFilter(it)) }
+                f.officialRatings?.takeIf { it.isNotEmpty() }?.let { add(RatingFilter(it)) }
+                f.tags?.takeIf { it.isNotEmpty() }?.let { add(TagFilter(it)) }
+                f.years?.takeIf { it.isNotEmpty() }?.let { add(YearFilter(it)) }
+            }
+        }
+
+        return AnimeFilterList(filters)
     }
 
     // =========================== Anime Details ============================
@@ -532,14 +763,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             addQueryParameter("Recursive", "true")
             addQueryParameter("SortBy", "SortName")
             addQueryParameter("SortOrder", "Ascending")
-            addQueryParameter(
-                "IncludeItemTypes",
-                listOf(
-                    ItemType.Movie,
-                    ItemType.Series,
-                    ItemType.BoxSet,
-                ).joinToString(",") { it.name },
-            )
+            addQueryParameter("IncludeItemTypes", itemTypes.joinToString(",") { it.name })
             addQueryParameter("ImageTypeLimit", "1")
             addQueryParameter("ParentId", preferences.selectedLibrary)
             addQueryParameter("EnableImageTypes", "Primary")
@@ -616,6 +840,10 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         private const val PREF_CONCATENATE_NAMES_KEY = "preferred_concatenate_names"
         private const val PREF_CONCATENATE_NAMES_DEFAULT = false
 
+        private const val PREF_SAVE_TYPES_KEY = "preferred_save_types"
+        private const val PREF_SAVE_TYPES_DEFAULT = false
+        private const val PREF_SAVE_TYPES_VALUE = "preferred_save_types_value"
+
         private val SUBSTITUTE_VALUES = hashMapOf(
             "title" to "",
             "originalTitle" to "",
@@ -667,6 +895,8 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         PREF_CONCATENATE_NAMES_KEY,
         PREF_CONCATENATE_NAMES_DEFAULT,
     )
+    private val SharedPreferences.saveTypes by preferences.delegate(PREF_SAVE_TYPES_KEY, PREF_SAVE_TYPES_DEFAULT)
+    private var SharedPreferences.saveTypesValue by preferences.delegate(PREF_SAVE_TYPES_VALUE, "[]")
 
     private fun clearCredentials() {
         preferences.libraryList = "[]"
@@ -951,6 +1181,13 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             default = PREF_CONCATENATE_NAMES_DEFAULT,
             title = "Concatenate series and season names",
             summary = "",
+        )
+
+        screen.addSwitchPreference(
+            key = PREF_SAVE_TYPES_KEY,
+            default = PREF_SAVE_TYPES_DEFAULT,
+            title = "Save selected types filter",
+            summary = "Applies to Popular, Latest, and Search",
         )
     }
 }
