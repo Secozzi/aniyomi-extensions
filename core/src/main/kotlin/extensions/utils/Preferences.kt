@@ -130,6 +130,7 @@ fun PreferenceScreen.getEditTextPreference(
     inputType: Int? = null,
     validate: ((String) -> Boolean)? = null,
     validationMessage: ((String) -> String)? = null,
+    allowBlank: Boolean = true,
     restartRequired: Boolean = false,
     enabled: Boolean = true,
     onComplete: (String) -> Unit = {},
@@ -159,7 +160,7 @@ fun PreferenceScreen.getEditTextPreference(
                             requireNotNull(editable)
 
                             val text = editable.toString()
-                            val isValid = text.isBlank() || validate(text)
+                            val isValid = (allowBlank && text.isBlank()) || validate(text)
 
                             editText.error = if (!isValid) validationMessage?.invoke(text) else null
                             editText.rootView.findViewById<Button>(android.R.id.button1)
@@ -208,6 +209,7 @@ fun PreferenceScreen.addEditTextPreference(
     inputType: Int? = null,
     validate: ((String) -> Boolean)? = null,
     validationMessage: ((String) -> String)? = null,
+    allowBlank: Boolean = true,
     restartRequired: Boolean = false,
     enabled: Boolean = true,
     onComplete: (String) -> Unit = {},
@@ -222,6 +224,7 @@ fun PreferenceScreen.addEditTextPreference(
         inputType = inputType,
         validate = validate,
         validationMessage = validationMessage,
+        allowBlank = allowBlank,
         restartRequired = restartRequired,
         enabled = enabled,
         onComplete = onComplete,
@@ -405,7 +408,7 @@ fun PreferenceScreen.getSwitchPreference(
             }
             onChange(pref, prefValue)
         }
-    }.also(::addPreference)
+    }
 }
 
 /**

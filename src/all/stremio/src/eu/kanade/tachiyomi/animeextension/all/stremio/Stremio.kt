@@ -416,8 +416,6 @@ class Stremio : Source() {
                     add(LibrarySortFilter())
                 }
             }
-
-            add(AnimeFilter.Header(""))
         }
 
         return AnimeFilterList(filters)
@@ -599,9 +597,12 @@ class Stremio : Source() {
     override suspend fun getVideoList(hoster: Hoster): List<Video> {
         val serverUrl = preferences.serverUrl.takeIf { it.isNotEmpty() }
 
-        return client.get(hoster.hosterUrl, headers)
+        val videoList = client.get(hoster.hosterUrl, headers)
             .parseAs<StreamResultDto>()
             .streams.mapNotNull { v -> v.toVideo(serverUrl, hoster.internalData) }
+
+        val videoLimit = preferences.videoLimit.toInt()
+        return if (videoLimit == 0) videoList else videoList.take(videoLimit)
     }
 
     override suspend fun resolveVideo(video: Video): Video? {
@@ -684,6 +685,9 @@ class Stremio : Source() {
         private const val PREF_CONCAT_NAMES_KEY = "pref_concatenate_names"
         private const val PREF_CONCAT_NAMES_DEFAULT = true
 
+        private const val PREF_VIDEO_LIMIT_KEY = "pref_video_limit"
+        private const val PREF_VIDEO_LIMIT_DEFAULT = "0"
+
         private const val PREF_FETCH_LIBRARY_KEY = "pref_fetch_library"
         private const val PREF_FETCH_LIBRARY_DEFAULT = false
 
@@ -740,6 +744,10 @@ class Stremio : Source() {
     private val SharedPreferences.concatNames by preferences.delegate(
         PREF_CONCAT_NAMES_KEY,
         PREF_CONCAT_NAMES_DEFAULT,
+    )
+    private val SharedPreferences.videoLimit by preferences.delegate(
+        PREF_VIDEO_LIMIT_KEY,
+        PREF_VIDEO_LIMIT_DEFAULT,
     )
     private val SharedPreferences.fetchLibrary by preferences.delegate(
         PREF_FETCH_LIBRARY_KEY,
@@ -973,6 +981,26 @@ class Stremio : Source() {
             default = PREF_CONCAT_NAMES_DEFAULT,
             title = "Concatenate series and season names",
             summary = "",
+        )
+
+        val limitSummary: (String) -> String = { if (it == "0") "No limit" else "Limit: $it" }
+        screen.addEditTextPreference(
+            key = PREF_VIDEO_LIMIT_KEY,
+            default = PREF_VIDEO_LIMIT_DEFAULT,
+            title = "Limit number of videos from hosters",
+            summary = limitSummary(preferences.videoLimit),
+            getSummary = limitSummary,
+            dialogMessage = "0 means no limit",
+            inputType = InputType.TYPE_CLASS_NUMBER,
+            validate = {
+                if (it.toIntOrNull() == null) {
+                    false
+                } else {
+                    it.toInt() > -1
+                }
+            },
+            validationMessage = { "Limit must be a number equal or greater to 0" },
+            allowBlank = false,
         )
 
         screen.addPreference(logOutPref)
