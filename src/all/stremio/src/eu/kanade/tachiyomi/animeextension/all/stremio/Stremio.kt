@@ -12,10 +12,14 @@ import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.ExtraType
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
+import eu.kanade.tachiyomi.animesource.model.FetchType
+import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.network.get
+import eu.kanade.tachiyomi.network.post
 import eu.kanade.tachiyomi.util.parallelCatchingFlatMap
 import extensions.utils.LazyMutable
 import extensions.utils.Source
@@ -23,10 +27,8 @@ import extensions.utils.addEditTextPreference
 import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
 import extensions.utils.firstInstance
-import extensions.utils.get
 import extensions.utils.getSwitchPreference
 import extensions.utils.parseAs
-import extensions.utils.post
 import extensions.utils.toRequestBody
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -42,7 +44,6 @@ import org.apache.commons.text.StringSubstitutor
 import kotlin.collections.any
 import kotlin.collections.orEmpty
 
-@Suppress("SpellCheckingInspection")
 class Stremio : Source() {
     override val migration: SharedPreferences.() -> Unit = {
         val addons = getString(ADDONS_KEY, ADDONS_DEFAULT)!!
@@ -155,7 +156,7 @@ class Stremio : Source() {
         )
 
         val data = response.parseAs<CatalogListDto>()
-        val entries = data.metas.map { it.toSAnime() }
+        val entries = data.metas.map { it.toSAnime(preferences.splitSeasons) }
 
         if (page == 1) {
             nextSkip = entries.size
@@ -306,7 +307,7 @@ class Stremio : Source() {
     private suspend fun fetchLibrary() {
         if (filtersState == FilterState.Unfetched && filterAttempts < 3) {
             filtersState = FilterState.Fetching
-            filterAttempts
+            filterAttempts++
 
             try {
                 val body = buildJsonObject {
@@ -415,8 +416,6 @@ class Stremio : Source() {
                     add(LibrarySortFilter())
                 }
             }
-
-            add(AnimeFilter.Header(""))
         }
 
         return AnimeFilterList(filters)
@@ -425,7 +424,7 @@ class Stremio : Source() {
     // =========================== Anime Details ============================
 
     override fun getAnimeUrl(anime: SAnime): String {
-        val (type, id) = anime.url.split("-", limit = 2)
+        val (_, type, id) = anime.url.getUrlParts()
 
         return baseUrl.toHttpUrl().newBuilder()
             .fragment("/detail/$type/$id")
@@ -433,7 +432,7 @@ class Stremio : Source() {
     }
 
     override suspend fun getAnimeDetails(anime: SAnime): SAnime {
-        val (type, id) = anime.url.split("-", limit = 2)
+        val (_, type, id) = anime.url.getUrlParts()
 
         val validAddons = addons.filter {
             it.manifest.isValidResource(AddonResource.META, type, id)
@@ -441,7 +440,7 @@ class Stremio : Source() {
 
         validAddons.forEach { addon ->
             getMeta(addon, type, id)?.let {
-                return it.toSAnime()
+                return it.toSAnime(preferences.splitSeasons)
             }
         }
 
@@ -467,7 +466,7 @@ class Stremio : Source() {
     // ============================== Episodes ==============================
 
     override fun getEpisodeUrl(episode: SEpisode): String {
-        val (type, id) = episode.url.split("-", limit = 2)
+        val (_, type, id) = episode.url.getUrlParts()
         val entryId = id.substringBefore(":")
 
         return baseUrl.toHttpUrl().newBuilder()
@@ -475,8 +474,47 @@ class Stremio : Source() {
             .build().toString()
     }
 
+    override suspend fun getSeasonList(anime: SAnime): List<SAnime> {
+        val (_, type, id) = anime.url.getUrlParts()
+
+        val validAddons = addons.filter {
+            it.manifest.isValidResource(AddonResource.META, type, id)
+        }
+
+        validAddons.forEach { addon ->
+            getMeta(addon, type, id)?.let { meta ->
+                meta.videos?.takeIf { it.isNotEmpty() }?.let { videos ->
+                    return videos.distinctBy { it.season }.map {
+                        SAnime.create().apply {
+                            title = buildString {
+                                if (preferences.concatNames) {
+                                    append(anime.title)
+                                    append(" ")
+                                }
+                                append("Season ")
+                                append(it.season ?: 0)
+                            }
+                            url = "${it.season ?: 0}-$type-$id"
+                            season_number = it.season?.toDouble() ?: 0.0
+                            fetch_type = FetchType.Episodes
+
+                            thumbnail_url = anime.thumbnail_url
+                            genre = anime.genre
+                            author = anime.author
+                            artist = anime.artist
+                            description = anime.description
+                            status = anime.status
+                        }
+                    }
+                }
+            }
+        }
+
+        return emptyList()
+    }
+
     override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
-        val (type, id) = anime.url.split("-", limit = 2)
+        val (season, type, id) = anime.url.getUrlParts()
 
         if (type.equals("movie", true)) {
             return listOf(
@@ -492,7 +530,6 @@ class Stremio : Source() {
             it.manifest.isValidResource(AddonResource.META, type, id)
         }
 
-        val skipSeason0 = preferences.skipSeason0
         val nameTemplate = preferences.nameTemplate
         val scanlatorTemplate = preferences.scanlatorTemplate
 
@@ -512,8 +549,13 @@ class Stremio : Source() {
 
                 // Other
                 meta.videos?.takeIf { it.isNotEmpty() }?.let { videos ->
-                    return videos
-                        .filterNot { skipSeason0 && it.season == 0 }
+                    val episodeData = if (season == "#") {
+                        videos
+                    } else {
+                        videos.filter { it.season == season.toInt() }
+                    }
+
+                    return episodeData
                         .sortedWith(
                             compareBy(
                                 { it.season ?: 1 },
@@ -531,15 +573,12 @@ class Stremio : Source() {
 
     // ============================ Video Links =============================
 
-    override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        val (type, id) = episode.url.split("-", limit = 2)
-
-        val subtitles = getSubtitleList(type, id)
-        val serverUrl = preferences.serverUrl.takeIf { it.isNotEmpty() }
+    override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
+        val (_, type, id) = episode.url.getUrlParts()
 
         return addons
             .filter { it.manifest.isValidResource(AddonResource.STREAM, type, id) }
-            .parallelCatchingFlatMap { addon ->
+            .map { addon ->
                 val url = addon.getTransportUrl().newBuilder().apply {
                     addPathSegment("stream")
                     addPathSegment(type)
@@ -547,23 +586,58 @@ class Stremio : Source() {
                 }.build().toString() +
                     ".json"
 
-                client.get(url, headers)
-                    .parseAs<StreamResultDto>()
-                    .streams
-                    .map { v -> v.toVideo(serverUrl, subtitles) }
+                Hoster(
+                    hosterUrl = url,
+                    hosterName = addon.manifest.name,
+                    internalData = episode.url,
+                )
             }
-            .filterNotNull()
-            .sort()
     }
 
-    private suspend fun getSubtitleList(type: String, id: String): List<Track> {
+    override suspend fun getVideoList(hoster: Hoster): List<Video> {
+        val serverUrl = preferences.serverUrl.takeIf { it.isNotEmpty() }
+
+        val videoList = client.get(hoster.hosterUrl, headers)
+            .parseAs<StreamResultDto>()
+            .streams.mapNotNull { v -> v.toVideo(serverUrl, hoster.internalData) }
+
+        val videoLimit = preferences.videoLimit.toInt()
+        return if (videoLimit == 0) videoList else videoList.take(videoLimit)
+    }
+
+    override suspend fun resolveVideo(video: Video): Video? {
+        val data = video.internalData.parseAs<VideoData>()
+        val subtitleList = getSubtitleList(data)
+
+        return video.copy(
+            subtitleTracks = subtitleList,
+        )
+    }
+
+    private suspend fun getSubtitleList(videoData: VideoData): List<Track> {
         return addons
-            .filter { it.manifest.isValidResource(AddonResource.SUBTITLES, type, id) }
+            .filter { it.manifest.isValidResource(AddonResource.SUBTITLES, videoData.type, videoData.id) }
             .parallelCatchingFlatMap { addon ->
+                val hints = buildList(3) {
+                    videoData.videoHash?.let {
+                        add("videoHash=${it.urlEncode()}")
+                    }
+                    videoData.videoSize?.let {
+                        add("videoSize=$it")
+                    }
+                    videoData.filename?.let {
+                        add("filename=${it.urlEncode()}")
+                    }
+                }.joinToString("&")
+
                 val url = addon.getTransportUrl().newBuilder().apply {
                     addPathSegment("subtitles")
-                    addPathSegment(type)
-                    addPathSegment(id)
+                    addPathSegment(videoData.type)
+                    addPathSegment(videoData.id)
+
+                    if (hints.isNotEmpty()) {
+                        addPathSegment(hints)
+                    }
                 }.build().toString() +
                     ".json"
 
@@ -575,6 +649,16 @@ class Stremio : Source() {
     }
 
     // ============================= Utilities ==============================
+
+    private fun String.getUrlParts(): List<String> {
+        val url = if (this.first().let { it.isDigit() || it == '#' }) {
+            this
+        } else {
+            "#-$this"
+        }
+
+        return url.split("-", limit = 3)
+    }
 
     companion object {
         const val API_URL = "https://api.strem.io"
@@ -595,12 +679,19 @@ class Stremio : Source() {
         private const val PASSWORD_KEY = "password"
         private const val PASSWORD_DEFAULT = ""
 
-        private const val PREF_SKIP_SEASON_0_KEY = "pref_skip_season_0"
-        private const val PREF_SKIP_SEASON_0_DEFAULT = false
+        private const val PREF_SPLIT_SEASONS_KEY = "pref_split_seasons"
+        private const val PREF_SPLIT_SEASONS_DEFAULT = true
+
+        private const val PREF_CONCAT_NAMES_KEY = "pref_concatenate_names"
+        private const val PREF_CONCAT_NAMES_DEFAULT = true
+
+        private const val PREF_VIDEO_LIMIT_KEY = "pref_video_limit"
+        private const val PREF_VIDEO_LIMIT_DEFAULT = "0"
 
         private const val PREF_FETCH_LIBRARY_KEY = "pref_fetch_library"
         private const val PREF_FETCH_LIBRARY_DEFAULT = false
 
+        @Suppress("SpellCheckingInspection")
         const val AUTHKEY_KEY = ""
 
         private val SUBSTITUTE_VALUES = mapOf(
@@ -646,9 +737,17 @@ class Stremio : Source() {
         PREF_SCANLATOR_NAME_TEMPLATE_KEY,
         PREF_SCANLATOR_NAME_TEMPLATE_DEFAULT,
     )
-    private val SharedPreferences.skipSeason0 by preferences.delegate(
-        PREF_SKIP_SEASON_0_KEY,
-        PREF_SKIP_SEASON_0_DEFAULT,
+    private val SharedPreferences.splitSeasons by preferences.delegate(
+        PREF_SPLIT_SEASONS_KEY,
+        PREF_SPLIT_SEASONS_DEFAULT,
+    )
+    private val SharedPreferences.concatNames by preferences.delegate(
+        PREF_CONCAT_NAMES_KEY,
+        PREF_CONCAT_NAMES_DEFAULT,
+    )
+    private val SharedPreferences.videoLimit by preferences.delegate(
+        PREF_VIDEO_LIMIT_KEY,
+        PREF_VIDEO_LIMIT_DEFAULT,
     )
     private val SharedPreferences.fetchLibrary by preferences.delegate(
         PREF_FETCH_LIBRARY_KEY,
@@ -871,10 +970,37 @@ class Stremio : Source() {
         )
 
         screen.addSwitchPreference(
-            key = PREF_SKIP_SEASON_0_KEY,
-            default = PREF_SKIP_SEASON_0_DEFAULT,
-            title = "Skip season 0",
-            summary = "Filter out specials",
+            key = PREF_SPLIT_SEASONS_KEY,
+            default = PREF_SPLIT_SEASONS_DEFAULT,
+            title = "Split seasons",
+            summary = "Split seasons into its own entry",
+        )
+
+        screen.addSwitchPreference(
+            key = PREF_CONCAT_NAMES_KEY,
+            default = PREF_CONCAT_NAMES_DEFAULT,
+            title = "Concatenate series and season names",
+            summary = "",
+        )
+
+        val limitSummary: (String) -> String = { if (it == "0") "No limit" else "Limit: $it" }
+        screen.addEditTextPreference(
+            key = PREF_VIDEO_LIMIT_KEY,
+            default = PREF_VIDEO_LIMIT_DEFAULT,
+            title = "Limit number of videos from hosters",
+            summary = limitSummary(preferences.videoLimit),
+            getSummary = limitSummary,
+            dialogMessage = "0 means no limit",
+            inputType = InputType.TYPE_CLASS_NUMBER,
+            validate = {
+                if (it.toIntOrNull() == null) {
+                    false
+                } else {
+                    it.toInt() > -1
+                }
+            },
+            validationMessage = { "Limit must be a number equal or greater to 0" },
+            allowBlank = false,
         )
 
         screen.addPreference(logOutPref)

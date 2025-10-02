@@ -8,6 +8,7 @@ import android.text.InputType
 import android.util.Log
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animeextension.BuildConfig
+import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.FiltersDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.ItemDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.ItemListDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.ItemType
@@ -16,13 +17,18 @@ import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.MediaLibraryDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.PlaybackInfoDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.SessionDto
 import eu.kanade.tachiyomi.animesource.UnmeteredSource
+import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
+import eu.kanade.tachiyomi.animesource.model.Hoster
+import eu.kanade.tachiyomi.animesource.model.Hoster.Companion.toHosterList
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.HttpException
+import eu.kanade.tachiyomi.network.get
+import eu.kanade.tachiyomi.network.post
 import extensions.utils.LazyMutable
 import extensions.utils.Source
 import extensions.utils.addEditTextPreference
@@ -30,17 +36,17 @@ import extensions.utils.addListPreference
 import extensions.utils.addSetPreference
 import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
-import extensions.utils.get
 import extensions.utils.getListPreference
 import extensions.utils.parseAs
-import extensions.utils.post
 import extensions.utils.toJsonBody
+import extensions.utils.toJsonString
 import extensions.utils.toRequestBody
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -49,21 +55,12 @@ import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.Response
 import org.apache.commons.text.StringSubstitutor
 import java.io.IOException
 import java.security.MessageDigest
 import kotlin.getValue
 
-@Suppress("SpellCheckingInspection")
 class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
-    override val migration: SharedPreferences.() -> Unit = {
-        val quality = getString(PREF_QUALITY_KEY, PREF_QUALITY_DEFAULT)!!
-        Constants.QUALITY_MIGRATION_MAP[quality]?.let {
-            edit().putString(PREF_QUALITY_KEY, it.toString()).commit()
-        }
-    }
-
     override val json: Json by lazy {
         Json {
             isLenient = false
@@ -84,8 +81,10 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
     override val supportsLatest = true
 
+    override val versionId = 2
+
     override val id by lazy {
-        val key = "jellyfin" + (if (suffix == "1") "" else " ($suffix)") + "/all/$versionId"
+        val key = "jellyfin ($suffix)/all/$versionId"
         val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())
         (0..7).map { bytes[it].toLong() and 0xff shl 8 * (7 - it) }.reduce(Long::or) and Long.MAX_VALUE
     }
@@ -119,26 +118,17 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     override suspend fun getPopularAnime(page: Int): AnimesPage {
         checkPreferences()
 
-        val startIndex = (page - 1) * SEASONS_FETCH_LIMIT
+        val startIndex = (page - 1) * SERIES_FETCH_LIMIT
         val url = getItemsUrl(startIndex)
 
-        return getPopularAnimePage(url, page)
+        return getAnimePage(url, page)
     }
 
-    private suspend fun getPopularAnimePage(url: HttpUrl, page: Int): AnimesPage {
+    private suspend fun getAnimePage(url: HttpUrl, page: Int): AnimesPage {
         val items = client.get(url).parseAs<ItemListDto>()
-        val animeList = items.items.flatMap {
-            if (it.type == ItemType.BoxSet && preferences.splitCollections) {
-                val boxSetUrl = url.newBuilder().apply {
-                    setQueryParameter("ParentId", it.id)
-                }.build()
 
-                getAnimeList(client.get(boxSetUrl).parseAs())
-            } else {
-                listOf(it.toSAnime(baseUrl, preferences.userId))
-            }
-        }
-        val hasNextPage = SEASONS_FETCH_LIMIT * page < items.totalRecordCount
+        val animeList = items.items.map { it.toSAnime(baseUrl, preferences.userId, preferences.concatNames) }
+        val hasNextPage = SERIES_FETCH_LIMIT * page < items.totalRecordCount
 
         return AnimesPage(animeList, hasNextPage)
     }
@@ -148,13 +138,13 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     override suspend fun getLatestUpdates(page: Int): AnimesPage {
         checkPreferences()
 
-        val startIndex = (page - 1) * SEASONS_FETCH_LIMIT
+        val startIndex = (page - 1) * SERIES_FETCH_LIMIT
         val url = getItemsUrl(startIndex).newBuilder().apply {
             setQueryParameter("SortBy", "DateCreated,SortName")
             setQueryParameter("SortOrder", "Descending")
         }.build()
 
-        return getPopularAnimePage(url, page)
+        return getAnimePage(url, page)
     }
 
     // =============================== Search ===============================
@@ -165,38 +155,248 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         filters: AnimeFilterList,
     ): AnimesPage {
         checkPreferences()
-
-        val startIndex = (page - 1) * SERIES_FETCH_LIMIT
-        val url = getItemsUrl(startIndex).newBuilder().apply {
-            // Search for series, rather than seasons, since season names can just be "Season 1"
-            setQueryParameter("IncludeItemTypes", "Movie,Series")
-            setQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
-            setQueryParameter("SearchTerm", query)
-        }.build()
-
-        val items = client.get(url).parseAs<ItemListDto>()
-        val animeList = items.items.flatMap { series ->
-            val seasonsUrl = getItemsUrl(1).newBuilder().apply {
-                setQueryParameter("ParentId", series.id)
-                removeAllQueryParameters("StartIndex")
-                removeAllQueryParameters("Limit")
-            }.build()
-
-            val seasonsData = client.get(seasonsUrl).parseAs<ItemListDto>()
-
-            seasonsData.items.map { it.toSAnime(baseUrl, preferences.userId) }
+        val filterList = filters.ifEmpty { getFilterList() }
+        filterList.filterIsInstance<TypeFilter>().first().let {
+            itemTypes = it.state.filter { s -> s.state }.map { s -> s.id }
+            if (preferences.saveTypes) {
+                preferences.saveTypesValue = json.encodeToString<List<ItemType>>(itemTypes)
+            }
         }
 
-        val hasNextPage = SERIES_FETCH_LIMIT * page < items.totalRecordCount
+        val startIndex = (page - 1) * SERIES_FETCH_LIMIT
+        val url = if (query.isNotBlank()) {
+            getItemsUrl(startIndex).newBuilder().apply {
+                setQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
+                setQueryParameter("SearchTerm", query)
+            }.build()
+        } else {
+            baseUrl.toHttpUrl().newBuilder().apply {
+                addPathSegment("Users")
+                addPathSegment(preferences.userId)
+                addPathSegment("Items")
+                addQueryParameter("StartIndex", startIndex.toString())
+                addQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
+                addQueryParameter("Recursive", "true")
+                addQueryParameter("ImageTypeLimit", "1")
+                addQueryParameter("ParentId", preferences.selectedLibrary)
+                addQueryParameter("EnableImageTypes", "Primary")
 
-        return AnimesPage(animeList, hasNextPage)
+                filterList.filterIsInstance<UrlFilter>().forEach {
+                    it.addToUrl(this)
+                }
+            }.build()
+        }
+        return getAnimePage(url, page)
+    }
+
+    // ============================== Filters ===============================
+
+    interface UrlFilter {
+        fun addToUrl(url: HttpUrl.Builder)
+    }
+
+    class CheckboxFilter<T>(
+        name: String,
+        val id: T,
+        state: Boolean = false,
+    ) : AnimeFilter.CheckBox(name, state)
+
+    open class CheckboxListFilter<T>(
+        name: String,
+        values: List<CheckboxFilter<T>>,
+        val queryParam: String,
+        val querySeparator: String = ",",
+        val transform: (T) -> String = { it.toString() },
+    ) : AnimeFilter.Group<CheckboxFilter<T>>(name, values), UrlFilter {
+        override fun addToUrl(url: HttpUrl.Builder) {
+            val selected = state.filter { it.state }
+
+            if (selected.isNotEmpty()) {
+                url.addQueryParameter(
+                    queryParam,
+                    selected.joinToString(querySeparator) { transform(it.id) },
+                )
+            }
+        }
+    }
+
+    class TypeFilter(selected: List<ItemType>) : CheckboxListFilter<ItemType>(
+        "Select type(s)",
+        listOf(
+            CheckboxFilter("Movies", ItemType.Movie, ItemType.Movie in selected),
+            CheckboxFilter("Series", ItemType.Series, ItemType.Series in selected),
+            CheckboxFilter("Seasons", ItemType.Season, ItemType.Season in selected),
+            CheckboxFilter("Collections", ItemType.BoxSet, ItemType.BoxSet in selected),
+        ),
+        "IncludeItemTypes",
+        transform = { it.name },
+    )
+
+    class SortFilter :
+        AnimeFilter.Sort(
+            "Sort by",
+            sortList.map { it.first }.toTypedArray(),
+            Selection(0, true),
+        ),
+        UrlFilter {
+        override fun addToUrl(url: HttpUrl.Builder) {
+            val value = sortList[state!!.index].second
+            val order = if (state!!.ascending) "Ascending" else "Descending"
+
+            url.addQueryParameter("SortBy", value)
+            url.addQueryParameter("SortOrder", order)
+        }
+
+        companion object {
+            private val sortList = listOf(
+                "Name" to "SortName",
+                "Random" to "Random",
+                "Community Rating" to "CommunityRating,SortName",
+                "Date Show Added" to "DateCreated,SortName",
+                "Date Episode Added" to "DateLastContentAdded,SortName",
+                "Date Played" to "SeriesDatePlayed,SortName",
+                "Parental Rating" to "OfficialRating,SortName",
+                "Release Date" to "PremiereDate,SortName",
+            )
+        }
+    }
+
+    class FilterFilter : CheckboxListFilter<String>(
+        "Filters",
+        listOf(
+            CheckboxFilter("Played", "IsPlayed"),
+            CheckboxFilter("Unplayed", "IsUnPlayed"),
+            CheckboxFilter("Resumable", "IsResumable"),
+            CheckboxFilter("Favorites", "IsFavorite"),
+        ),
+        "Filters",
+    )
+
+    class StatusFilter : CheckboxListFilter<String>(
+        "Status",
+        listOf(
+            CheckboxFilter("Continuing", "Continuing"),
+            CheckboxFilter("Ended", "Ended"),
+            CheckboxFilter("Not yet released", "Unreleased"),
+        ),
+        "SeriesStatus",
+    )
+
+    class FeaturesFilter : CheckboxListFilter<String>(
+        "Features",
+        listOf(
+            CheckboxFilter("Subtitles", "HasSubtitles"),
+            CheckboxFilter("Trailer", "HasTrailer"),
+            CheckboxFilter("Special Features", "HasSpecialFeature"),
+            CheckboxFilter("Theme song", "HasThemeSong"),
+            CheckboxFilter("Theme video", "HasThemeVideo"),
+        ),
+        "unused",
+    ) {
+        override fun addToUrl(url: HttpUrl.Builder) {
+            state.filter { it.state }.forEach {
+                url.addQueryParameter(it.id, "true")
+            }
+        }
+    }
+
+    class GenreFilter(genres: List<String>) : CheckboxListFilter<String>(
+        "Genres",
+        genres.map { CheckboxFilter(it, it) },
+        "Genres",
+        querySeparator = "|",
+    )
+
+    class RatingFilter(ratings: List<String>) : CheckboxListFilter<String>(
+        "Parental Ratings",
+        ratings.map { CheckboxFilter(it, it) },
+        "OfficialRatings",
+        querySeparator = "|",
+    )
+
+    class TagFilter(tags: List<String>) : CheckboxListFilter<String>(
+        "Tags",
+        tags.map { CheckboxFilter(it, it) },
+        "Tags",
+        querySeparator = "|",
+    )
+
+    class YearFilter(years: List<Int>) : CheckboxListFilter<Int>(
+        "Years",
+        years.map { CheckboxFilter(it.toString(), it) },
+        "Years",
+    )
+
+    private var itemTypes by LazyMutable {
+        if (preferences.saveTypes) {
+            json.decodeFromString<List<ItemType>>(preferences.saveTypesValue)
+        } else {
+            listOf(ItemType.Movie, ItemType.Series, ItemType.BoxSet)
+        }
+    }
+    private var filterResult: FiltersDto? = null
+    private var filtersState = FilterState.Unfetched
+    private var filterAttempts = 0
+
+    private enum class FilterState {
+        Fetching,
+        Fetched,
+        Unfetched,
+    }
+
+    private suspend fun getFilters() {
+        if (filtersState != FilterState.Fetching && filterAttempts < 3) {
+            filtersState = FilterState.Fetching
+            filterAttempts++
+
+            try {
+                val url = baseUrl.toHttpUrl().newBuilder().apply {
+                    addPathSegment("Items")
+                    addPathSegment("Filters")
+                    addQueryParameter("UserId", preferences.userId)
+                    addQueryParameter("ParentId", preferences.selectedLibrary)
+                    addQueryParameter("IncludeItemTypes", itemTypes.joinToString(",") { it.name })
+                }.build()
+
+                filterResult = client.get(url).parseAs<FiltersDto>()
+                filtersState = FilterState.Fetched
+                filterAttempts = 0
+            } catch (e: Exception) {
+                Log.e(LOG_TAG, "Failed to fetch filters", e)
+                filtersState = FilterState.Unfetched
+            }
+        }
+    }
+
+    override fun getFilterList(): AnimeFilterList {
+        CoroutineScope(Dispatchers.IO).launch { getFilters() }
+
+        val filters = buildList<AnimeFilter<*>> {
+            add(AnimeFilter.Header("Note: search ignores all filters except selected type(s)"))
+            add(TypeFilter(itemTypes))
+            add(AnimeFilter.Separator())
+            add(SortFilter())
+
+            add(FilterFilter())
+            add(StatusFilter())
+            add(FeaturesFilter())
+
+            add(AnimeFilter.Separator())
+            add(AnimeFilter.Header("Press 'reset' after searching to set filters for selected type(s)"))
+            filterResult?.let { f ->
+                f.genres?.takeIf { it.isNotEmpty() }?.let { add(GenreFilter(it)) }
+                f.officialRatings?.takeIf { it.isNotEmpty() }?.let { add(RatingFilter(it)) }
+                f.tags?.takeIf { it.isNotEmpty() }?.let { add(TagFilter(it)) }
+                f.years?.takeIf { it.isNotEmpty() }?.let { add(YearFilter(it)) }
+            }
+        }
+
+        return AnimeFilterList(filters)
     }
 
     // =========================== Anime Details ============================
 
     override suspend fun getAnimeDetails(anime: SAnime): SAnime {
-        if (!anime.url.startsWith("http")) throw Exception("Migrate from jellyfin to jellyfin")
-
         val data = client.get(anime.url).parseAs<ItemDto>()
         val infoData = if (preferences.seriesData && data.seriesId != null) {
             val httpUrl = anime.url.toHttpUrl()
@@ -210,56 +410,20 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             data
         }
 
-        return infoData.toSAnime(baseUrl, preferences.userId)
+        return infoData.toSAnime(baseUrl, preferences.userId, preferences.concatNames)
     }
 
     // ============================== Episodes ==============================
 
-    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
-        if (!anime.url.startsWith("http")) throw Exception("Migrate from jellyfin to jellyfin")
-
-        val url = getEpisodeListUrl(anime)
-        val response = client.get(url)
-
-        return if (url.fragment?.startsWith("boxSet") == true) {
-            val data = response.parseAs<ItemListDto>()
-            val animeList = data.items.map {
-                it.toSAnime(baseUrl, preferences.userId)
-            }.sortedByDescending { it.title }
-
-            animeList.flatMap {
-                episodeListParse(
-                    response = client.get(getEpisodeListUrl(it)),
-                    prefix = "${it.title} - ",
-                )
-            }
-        } else {
-            episodeListParse(response, "")
-        }
-    }
-
-    private fun getEpisodeListUrl(anime: SAnime): HttpUrl {
+    override suspend fun getSeasonList(anime: SAnime): List<SAnime> {
         val httpUrl = anime.url.toHttpUrl()
         val itemId = httpUrl.pathSegments[3]
         val fragment = httpUrl.fragment!!
 
-        return when {
-            fragment.startsWith("seriesId") -> {
-                httpUrl.newBuilder().apply {
-                    encodedPath("/")
-                    addPathSegment("Shows")
-                    addPathSegment(fragment.split(",").last())
-                    addPathSegment("Episodes")
-                    addQueryParameter("seasonId", httpUrl.pathSegments.last())
-                    addQueryParameter("userId", preferences.userId)
-                    addQueryParameter("Fields", "Overview,MediaSources,DateCreated,OriginalTitle,SortName")
-                }.build()
-            }
-
+        val url = when {
             fragment.startsWith("boxSet") -> {
                 httpUrl.newBuilder().apply {
                     removePathSegment(3)
-                    addQueryParameter("Recursive", "true")
                     addQueryParameter("SortBy", "SortName")
                     addQueryParameter("SortOrder", "Ascending")
                     addQueryParameter("IncludeItemTypes", "Movie,Season,BoxSet,Series")
@@ -273,8 +437,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                     encodedPath("/")
                     addPathSegment("Shows")
                     addPathSegment(itemId)
-                    addPathSegment("Episodes")
-                    addQueryParameter("Fields", "DateCreated,OriginalTitle,SortName")
+                    addPathSegment("Seasons")
                 }.build()
             }
 
@@ -284,20 +447,35 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                 }.build()
             }
         }
+
+        return client.get(url).parseAs<ItemListDto>().items.map {
+            it.toSAnime(baseUrl, preferences.userId, preferences.concatNames)
+        }
     }
 
-    private fun episodeListParse(response: Response, prefix: String): List<SEpisode> {
-        val itemList = if (response.request.url.pathSize > 3) {
-            listOf(response.parseAs<ItemDto>())
+    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
+        val url = anime.url.toHttpUrl()
+        val fragment = url.fragment!!
+        val itemList = if (fragment == "movie") {
+            listOf(client.get(url).parseAs<ItemDto>())
         } else {
-            response.parseAs<ItemListDto>().items
+            val episodesUrl = url.newBuilder().apply {
+                encodedPath("/")
+                addPathSegment("Shows")
+                addPathSegment(fragment.split(",").last())
+                addPathSegment("Episodes")
+                addQueryParameter("seasonId", url.pathSegments.last())
+                addQueryParameter("userId", preferences.userId)
+                addQueryParameter("Fields", "Overview,MediaSources,DateCreated,OriginalTitle,SortName")
+            }.build()
+
+            client.get(episodesUrl).parseAs<ItemListDto>().items
         }
 
         return itemList.map {
             it.toSEpisode(
                 baseUrl = baseUrl,
                 userId = preferences.userId,
-                prefix = prefix,
                 epDetails = preferences.epDetails,
                 episodeTemplate = preferences.episodeTemplate,
             )
@@ -306,9 +484,11 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
     // ============================ Video Links =============================
 
-    override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        if (!episode.url.startsWith("http")) throw Exception("Migrate from jellyfin to jellyfin")
+    override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
+        return getVideoList(episode).toHosterList()
+    }
 
+    private suspend fun getVideoList(episode: SEpisode): List<Video> {
         val item = client.get(episode.url).parseAs<ItemDto>()
         val mediaSource = item.mediaSources?.firstOrNull() ?: return emptyList()
         val itemId = item.id
@@ -357,37 +537,16 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             }
         }
 
-        val qualities = Constants.QUALITIES_LIST.takeWhile { it.videoBitrate < referenceBitrate }
-        val playbackInfo = PlaybackInfoDto(
-            userId = preferences.userId,
-            isPlayback = true,
-            mediaSourceId = mediaSource.id!!,
-            maxStreamingBitrate = qualities.last().videoBitrate,
+        val sessionData = getSessionData(
+            videoBitrate = Int.MAX_VALUE,
+            audioBitrate = Int.MAX_VALUE,
+            mediaId = mediaSource.id!!,
+            itemId = itemId,
             audioStreamIndex = audioTrackIndex?.toString(),
             subtitleStreamIndex = subtitleTrackIndex?.toString(),
-            alwaysBurnInSubtitleWhenTranscoding = preferences.burnSub,
-            enableTranscoding = true,
-            deviceProfile = getDeviceProfile(
-                name = deviceInfo.name,
-                videoCodec = preferences.videoCodec,
-                videoBitrate = qualities.last().videoBitrate,
-                audioBitrate = qualities.last().audioBitrate,
-            ),
         )
 
-        val sessionUrl = baseUrl.toHttpUrl().newBuilder().apply {
-            addPathSegment("Items")
-            addPathSegment(itemId)
-            addPathSegment("PlaybackInfo")
-            addQueryParameter("userId", preferences.userId)
-        }.build().toString()
-
-        val sessionData = client.post(
-            url = sessionUrl,
-            body = json.encodeToString(playbackInfo).toJsonBody(),
-        ).parseAs<SessionDto>()
-
-        val videoBitrate = mediaSource.bitrate!!.formatBytes().replace("B", "b")
+        val videoBitrate = mediaSource.bitrate!!.toLong().formatBytes().replace("B", "b")
         val staticUrl = baseUrl.toHttpUrl().newBuilder().apply {
             addPathSegment("Videos")
             addPathSegment(itemId)
@@ -401,11 +560,13 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             .build()
 
         val staticVideo = Video(
-            url = Long.MAX_VALUE.toString(),
-            quality = "Source - ${videoBitrate}ps",
+            videoTitle = "Source - ${videoBitrate}ps",
             videoUrl = staticUrl,
-            subtitleTracks = externalSubtitleList,
+            bitrate = Int.MAX_VALUE,
             headers = videoHeaders,
+            preferred = mediaSource.bitrate == preferences.quality.toInt(),
+            subtitleTracks = externalSubtitleList,
+            initialized = true,
         )
 
         // Build video list
@@ -413,37 +574,104 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             videoList.add(staticVideo)
         }
 
-        val transcodingUrl = sessionData.mediaSources.first().transcodingUrl
-            ?.takeIf { mediaSource.supportsTranscoding }
-            ?.let { (baseUrl + it).toHttpUrl() }
-            ?: return videoList
+        if (!mediaSource.supportsTranscoding) {
+            return videoList
+        }
 
+        val qualities = Constants.QUALITIES_LIST.takeWhile { it.videoBitrate < referenceBitrate }
         qualities.forEach {
-            val url = transcodingUrl.newBuilder().apply {
-                setQueryParameter("VideoBitrate", it.videoBitrate.toString())
-                setQueryParameter("AudioBitrate", it.audioBitrate.toString())
-            }.build().toString()
-
             videoList.add(
                 Video(
-                    url = it.videoBitrate.toString(),
-                    quality = it.description,
-                    videoUrl = url,
-                    subtitleTracks = subtitleList,
+                    videoUrl = "",
+                    videoTitle = it.description,
+                    bitrate = it.videoBitrate,
                     headers = videoHeaders,
+                    preferred = it.videoBitrate == preferences.quality.toInt(),
+                    subtitleTracks = subtitleList,
+                    internalData = TranscodingInfo(
+                        videoBitrate = it.videoBitrate,
+                        audioBitrate = it.audioBitrate,
+                        mediaId = mediaSource.id,
+                        itemId = itemId,
+                        audioStreamIndex = audioTrackIndex?.toString(),
+                        subtitleStreamIndex = subtitleTrackIndex?.toString(),
+                    ).toJsonString(),
                 ),
             )
         }
 
-        return videoList.sort()
+        return videoList
     }
 
-    override fun List<Video>.sort(): List<Video> {
-        return sortedWith(
-            compareBy(
-                { it.url.equals(preferences.quality, true) },
-                { it.url.toLong() },
+    @Serializable
+    data class TranscodingInfo(
+        val videoBitrate: Int,
+        val audioBitrate: Int,
+        val mediaId: String,
+        val itemId: String,
+        val audioStreamIndex: String?,
+        val subtitleStreamIndex: String?,
+    )
+
+    private suspend fun getSessionData(
+        videoBitrate: Int,
+        audioBitrate: Int,
+        mediaId: String,
+        itemId: String,
+        audioStreamIndex: String?,
+        subtitleStreamIndex: String?,
+    ): SessionDto {
+        val playbackInfo = PlaybackInfoDto(
+            userId = preferences.userId,
+            isPlayback = true,
+            mediaSourceId = mediaId,
+            maxStreamingBitrate = videoBitrate,
+            audioStreamIndex = audioStreamIndex,
+            subtitleStreamIndex = subtitleStreamIndex,
+            alwaysBurnInSubtitleWhenTranscoding = preferences.burnSub,
+            enableTranscoding = true,
+            deviceProfile = getDeviceProfile(
+                name = deviceInfo.name,
+                videoCodec = preferences.videoCodec,
+                videoBitrate = videoBitrate,
+                audioBitrate = audioBitrate,
             ),
+        )
+
+        val sessionUrl = baseUrl.toHttpUrl().newBuilder().apply {
+            addPathSegment("Items")
+            addPathSegment(itemId)
+            addPathSegment("PlaybackInfo")
+            addQueryParameter("userId", preferences.userId)
+        }.build().toString()
+
+        return client.post(
+            url = sessionUrl,
+            body = json.encodeToString(playbackInfo).toJsonBody(),
+        ).parseAs<SessionDto>()
+    }
+
+    override suspend fun resolveVideo(video: Video): Video? {
+        val transcodingInfo = video.internalData.parseAs<TranscodingInfo>()
+        val sessionData = getSessionData(
+            videoBitrate = transcodingInfo.videoBitrate,
+            audioBitrate = transcodingInfo.audioBitrate,
+            mediaId = transcodingInfo.mediaId,
+            itemId = transcodingInfo.itemId,
+            audioStreamIndex = transcodingInfo.audioStreamIndex,
+            subtitleStreamIndex = transcodingInfo.subtitleStreamIndex,
+        )
+
+        return sessionData.mediaSources.firstOrNull()?.transcodingUrl?.let {
+            video.copy(
+                videoUrl = baseUrl + it,
+            )
+        }
+    }
+
+    override fun List<Video>.sortVideos(): List<Video> {
+        return sortedWith(
+            compareBy { it.bitrate!! },
         ).reversed()
     }
 
@@ -479,7 +707,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         val charPool = ('a'..'z') + ('0'..'9')
 
         return buildString(length) {
-            for (i in 0 until length) {
+            (0 until length).forEach { _ ->
                 append(charPool.random())
             }
         }
@@ -531,28 +759,15 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             addPathSegment(preferences.userId)
             addPathSegment("Items")
             addQueryParameter("StartIndex", startIndex.toString())
-            addQueryParameter("Limit", SEASONS_FETCH_LIMIT.toString())
+            addQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
             addQueryParameter("Recursive", "true")
             addQueryParameter("SortBy", "SortName")
             addQueryParameter("SortOrder", "Ascending")
-            addQueryParameter(
-                "IncludeItemTypes",
-                listOf(
-                    ItemType.Movie,
-                    ItemType.Season,
-                    ItemType.BoxSet,
-                ).joinToString(",") { it.name },
-            )
+            addQueryParameter("IncludeItemTypes", itemTypes.joinToString(",") { it.name })
             addQueryParameter("ImageTypeLimit", "1")
             addQueryParameter("ParentId", preferences.selectedLibrary)
             addQueryParameter("EnableImageTypes", "Primary")
         }.build()
-    }
-
-    private fun getAnimeList(itemList: ItemListDto): List<SAnime> {
-        return itemList
-            .items
-            .map { it.toSAnime(baseUrl, preferences.userId) }
     }
 
     private fun checkPreferences() {
@@ -563,8 +778,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
     @Suppress("SpellCheckingInspection")
     companion object {
-        private const val SEASONS_FETCH_LIMIT = 20
-        private const val SERIES_FETCH_LIMIT = 5
+        private const val SERIES_FETCH_LIMIT = 20
         private val LIBRARY_BLACKLIST = listOf(
             "music",
             "musicvideos",
@@ -606,7 +820,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         private val PREF_EP_DETAILS_DEFAULT = emptySet<String>()
 
         private const val PREF_QUALITY_KEY = "pref_quality"
-        private const val PREF_QUALITY_DEFAULT = "Source"
+        private const val PREF_QUALITY_DEFAULT = Int.MAX_VALUE.toString()
 
         private const val PREF_VIDEO_CODEC_KEY = "pref_video_codec"
         private const val PREF_VIDEO_CODEC_DEFAULT = "h264"
@@ -623,8 +837,12 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         private const val PREF_INFO_TYPE = "preferred_meta_type"
         private const val PREF_INFO_DEFAULT = false
 
-        private const val PREF_SPLIT_COLLECTIONS_KEY = "preferred_split_col"
-        private const val PREF_SPLIT_COLLECTIONS_DEFAULT = false
+        private const val PREF_CONCATENATE_NAMES_KEY = "preferred_concatenate_names"
+        private const val PREF_CONCATENATE_NAMES_DEFAULT = false
+
+        private const val PREF_SAVE_TYPES_KEY = "preferred_save_types"
+        private const val PREF_SAVE_TYPES_DEFAULT = false
+        private const val PREF_SAVE_TYPES_VALUE = "preferred_save_types_value"
 
         private val SUBSTITUTE_VALUES = hashMapOf(
             "title" to "",
@@ -673,10 +891,12 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     private val SharedPreferences.subLang by preferences.delegate(PREF_SUB_KEY, PREF_SUB_DEFAULT)
     private val SharedPreferences.burnSub by preferences.delegate(PREF_BURN_SUB_KEY, PREF_BURN_SUB_DEFAULT)
     private val SharedPreferences.seriesData by preferences.delegate(PREF_INFO_TYPE, PREF_INFO_DEFAULT)
-    private val SharedPreferences.splitCollections by preferences.delegate(
-        PREF_SPLIT_COLLECTIONS_KEY,
-        PREF_SPLIT_COLLECTIONS_DEFAULT,
+    private val SharedPreferences.concatNames by preferences.delegate(
+        PREF_CONCATENATE_NAMES_KEY,
+        PREF_CONCATENATE_NAMES_DEFAULT,
     )
+    private val SharedPreferences.saveTypes by preferences.delegate(PREF_SAVE_TYPES_KEY, PREF_SAVE_TYPES_DEFAULT)
+    private var SharedPreferences.saveTypesValue by preferences.delegate(PREF_SAVE_TYPES_VALUE, "[]")
 
     private fun clearCredentials() {
         preferences.libraryList = "[]"
@@ -899,7 +1119,8 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             title = "Preferred quality",
             summary = "Preferred quality. 'Source' means no transcoding.",
             entries = listOf("Source") + Constants.QUALITIES_LIST.reversed().map { it.description },
-            entryValues = listOf("Source") + Constants.QUALITIES_LIST.reversed().map { it.videoBitrate.toString() },
+            entryValues =
+            listOf(PREF_QUALITY_DEFAULT) + Constants.QUALITIES_LIST.reversed().map { it.videoBitrate.toString() },
         )
 
         screen.addEditTextPreference(
@@ -956,10 +1177,17 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         )
 
         screen.addSwitchPreference(
-            key = PREF_SPLIT_COLLECTIONS_KEY,
-            default = PREF_SPLIT_COLLECTIONS_DEFAULT,
-            title = "Split collections",
-            summary = "Split each item in a collection into its own entry",
+            key = PREF_CONCATENATE_NAMES_KEY,
+            default = PREF_CONCATENATE_NAMES_DEFAULT,
+            title = "Concatenate series and season names",
+            summary = "",
+        )
+
+        screen.addSwitchPreference(
+            key = PREF_SAVE_TYPES_KEY,
+            default = PREF_SAVE_TYPES_DEFAULT,
+            title = "Save selected types filter",
+            summary = "Applies to Popular, Latest, and Search",
         )
     }
 }

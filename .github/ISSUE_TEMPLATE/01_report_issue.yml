@@ -10,7 +10,7 @@ body:
       description: |
         You can find the extension name and version in **Browse → Extensions**.
       placeholder: |
-        Example: "Stremio 14.2 (All)"
+        Example: "Stremio 16.7 (All)"
     validations:
       required: true
 
@@ -63,7 +63,7 @@ body:
       description: |
         You can find your Aniyomi version in **More → About**.
       placeholder: |
-        Example: "0.16.3.4" or "Preview r8065"
+        Example: "0.18.1.0" or "Preview r8105"
     validations:
       required: true
 
@@ -95,7 +95,7 @@ body:
           required: true
         - label: I have written a short but informative title.
           required: true
-        - label: I have updated the app to version **[0.16.3.4](https://github.com/aniyomiorg/aniyomi/releases/latest)**.
+        - label: I have updated the app to version **[0.18.1.0](https://github.com/aniyomiorg/aniyomi/releases/latest)**.
           required: true
         - label: I have updated all installed extensions.
           required: true

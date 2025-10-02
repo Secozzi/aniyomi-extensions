@@ -240,7 +240,7 @@ apply from: "$rootDir/common.gradle"
 | `extVersionCode` | The extension version code. This must be a positive integer and incremented with any change to the code. |
 | `isNsfw` | (Optional, defaults to `false`) Flag to indicate that a source contains NSFW content. |
 
-The extension's version name is generated automatically by concatenating `14` and `extVersionCode`. With the example used above, the version would be `14.1`.
+The extension's version name is generated automatically by concatenating `16` and `extVersionCode`. With the example used above, the version would be `16.1`.
 
 ### Core dependencies
 
