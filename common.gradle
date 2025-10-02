@@ -31,7 +31,7 @@ android {
     defaultConfig {
         applicationIdSuffix project.parent.name + "." + project.name
         versionCode extVersionCode
-        versionName "14.$versionCode"
+        versionName "16.$versionCode"
         base {
             archivesName = "aniyomi-$applicationIdSuffix-v$versionName"
         }
