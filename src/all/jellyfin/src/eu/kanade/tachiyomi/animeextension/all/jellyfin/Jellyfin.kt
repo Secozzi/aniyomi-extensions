@@ -485,10 +485,10 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     // ============================ Video Links =============================
 
     override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
-        return getVideoList(episode).toHosterList()
+        return getVideoListFromEpisode(episode).toHosterList()
     }
 
-    private suspend fun getVideoList(episode: SEpisode): List<Video> {
+    private suspend fun getVideoListFromEpisode(episode: SEpisode): List<Video> {
         val item = client.get(episode.url).parseAs<ItemDto>()
         val mediaSource = item.mediaSources?.firstOrNull() ?: return emptyList()
         val itemId = item.id
