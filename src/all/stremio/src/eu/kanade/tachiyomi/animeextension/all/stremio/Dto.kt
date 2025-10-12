@@ -124,6 +124,7 @@ data class LibraryItemDto(
 @Serializable
 data class VideoDto(
     val id: String,
+    val title: String? = null,
     val name: String? = null,
     val episode: Int? = null,
     val released: String? = null,
@@ -139,7 +140,7 @@ data class VideoDto(
         type: String,
     ): SEpisode = SEpisode.create().apply {
         val values = mapOf(
-            "name" to (this@VideoDto.name ?: ""),
+            "name" to (this@VideoDto.title ?: this@VideoDto.name ?: ""),
             "episodeNumber" to (this@VideoDto.episode ?: 1),
             "seasonNumber" to (this@VideoDto.season ?: 1),
             "description" to (this@VideoDto.description ?: this@VideoDto.overview ?: ""),
