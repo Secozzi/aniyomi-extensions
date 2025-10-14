@@ -140,17 +140,17 @@ data class VideoDto(
         type: String,
     ): SEpisode = SEpisode.create().apply {
         val values = mapOf(
-            "name" to (this@VideoDto.title ?: this@VideoDto.name ?: ""),
+            "name" to (this@VideoDto.title?.takeNotBlank() ?: this@VideoDto.name ?: ""),
             "episodeNumber" to (this@VideoDto.episode ?: 1),
             "seasonNumber" to (this@VideoDto.season ?: 1),
-            "description" to (this@VideoDto.description ?: this@VideoDto.overview ?: ""),
+            "description" to (this@VideoDto.overview?.takeNotBlank() ?: this@VideoDto.description ?: ""),
         )
         val sub = StringSubstitutor(values, "{", "}")
 
         url = "$type-$id"
         name = sub.replace(episodeTemplate).trim()
-        scanlator = sub.replace(scanlatorTemplate).trim().takeIf { it.isNotBlank() }
-        summary = description ?: overview
+        scanlator = sub.replace(scanlatorTemplate).trim().takeNotBlank()
+        summary = overview?.takeNotBlank() ?: description
         preview_url = thumbnail
         episode_number = episode?.toFloat() ?: 1F
         date_upload = DATE_FORMAT.tryParse(released)
