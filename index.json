@@ -36,10 +36,10 @@
   {
     "name": "Aniyomi: Stremio",
     "pkg": "eu.kanade.tachiyomi.animeextension.all.stremio",
-    "apk": "aniyomi-all.stremio-v16.9.apk",
+    "apk": "aniyomi-all.stremio-v16.10.apk",
     "lang": "all",
-    "code": 9,
-    "version": "16.9",
+    "code": 10,
+    "version": "16.10",
     "nsfw": 0,
     "hasReadme": 0,
     "hasChangelog": 0,
