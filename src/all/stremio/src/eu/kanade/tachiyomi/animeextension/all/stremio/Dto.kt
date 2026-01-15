@@ -38,7 +38,7 @@ data class LoginDto(
 @Serializable
 data class CatalogListDto(
     val hasMore: Boolean? = null,
-    val metas: List<MetaDto>,
+    val metas: List<MetaDto>? = null,
 )
 
 @Serializable
