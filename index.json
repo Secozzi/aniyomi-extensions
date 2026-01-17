@@ -52,5 +52,25 @@
         "versionId": 1
       }
     ]
+  },
+  {
+    "name": "Aniyomi: Torbox",
+    "pkg": "eu.kanade.tachiyomi.animeextension.all.torbox",
+    "apk": "aniyomi-all.torbox-v16.1.apk",
+    "lang": "all",
+    "code": 1,
+    "version": "16.1",
+    "nsfw": 0,
+    "hasReadme": 0,
+    "hasChangelog": 0,
+    "sources": [
+      {
+        "name": "Torbox",
+        "lang": "all",
+        "id": "6664568273730202590",
+        "baseUrl": "",
+        "versionId": 1
+      }
+    ]
   }
 ]
