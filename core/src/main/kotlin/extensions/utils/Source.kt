@@ -14,7 +14,6 @@ import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import kotlinx.serialization.json.Json
 import okhttp3.Response
 import uy.kohesive.injekt.injectLazy
-import kotlin.getValue
 
 abstract class Source : ConfigurableAnimeSource, AnimeHttpSource() {
     protected val context: Application by injectLazy()

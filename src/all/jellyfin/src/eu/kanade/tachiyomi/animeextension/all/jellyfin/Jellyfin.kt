@@ -36,6 +36,7 @@ import extensions.utils.addListPreference
 import extensions.utils.addSetPreference
 import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
+import extensions.utils.formatBytes
 import extensions.utils.getListPreference
 import extensions.utils.parseAs
 import extensions.utils.toJsonBody
@@ -58,7 +59,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.apache.commons.text.StringSubstitutor
 import java.io.IOException
 import java.security.MessageDigest
-import kotlin.getValue
 
 class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     override val json: Json by lazy {
