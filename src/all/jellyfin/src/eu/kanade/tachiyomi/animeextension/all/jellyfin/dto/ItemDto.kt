@@ -1,10 +1,10 @@
 package eu.kanade.tachiyomi.animeextension.all.jellyfin.dto
 
-import eu.kanade.tachiyomi.animeextension.all.jellyfin.formatBytes
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.getImageUrl
 import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
+import extensions.utils.formatBytes
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.apache.commons.text.StringSubstitutor
