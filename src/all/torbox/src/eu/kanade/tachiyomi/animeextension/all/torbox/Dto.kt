@@ -33,7 +33,7 @@ data class ListDataDto(
     @SerialName("upload_speed")
     val uploadSpeed: Long? = null,
     val eta: Long,
-    val files: List<FileDto>,
+    val files: List<FileDto>? = null,
 ) {
     fun toInfoDataDto(type: String): InfoDataDto {
         return InfoDataDto(
@@ -49,7 +49,7 @@ data class ListDataDto(
             downloadSpeed = this.downloadSpeed,
             uploadSpeed = this.uploadSpeed,
             eta = this.eta,
-            files = this.files,
+            files = this.files.orEmpty(),
             type = type,
         )
     }
@@ -68,7 +68,14 @@ data class FileDto(
 data class InfoDetailsDto(
     val type: String,
     val id: Long,
-    val files: List<FileDto>,
+)
+
+@Serializable
+data class VideoDetailsDto(
+    val type: String,
+    val seriesId: Long,
+    val videoId: Long,
+    val openSubsHash: String? = null,
 )
 
 data class InfoDataDto(
@@ -108,7 +115,6 @@ data class InfoDataDto(
             this.url = InfoDetailsDto(
                 type = type,
                 id = id,
-                files = files,
             ).toJsonString()
         }
     }
