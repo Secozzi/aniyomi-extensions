@@ -547,27 +547,38 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         )
 
         val videoBitrate = mediaSource.bitrate!!.toLong().formatBytes().replace("B", "b")
-        val staticUrl = baseUrl.toHttpUrl().newBuilder().apply {
-            addPathSegment("Videos")
-            addPathSegment(itemId)
-            addPathSegment("stream")
-            addQueryParameter("static", "True")
-            addQueryParameter("PlaySessionId", sessionData.playSessionId)
-        }.build().toString()
-
         val videoHeaders = headersBuilder()
             .add("Authorization", getAuthHeader(deviceInfo, preferences.apiKey))
             .build()
 
-        val staticVideo = Video(
-            videoTitle = "Source - ${videoBitrate}ps",
-            videoUrl = staticUrl,
-            bitrate = Int.MAX_VALUE,
-            headers = videoHeaders,
-            preferred = mediaSource.bitrate == preferences.quality.toInt(),
-            subtitleTracks = externalSubtitleList,
-            initialized = true,
-        )
+        val staticVideo = if (mediaSource.isRemote && mediaSource.path != null && preferences.useRemote) {
+            Video(
+                videoTitle = "Source - ${videoBitrate}ps (Remote)",
+                videoUrl = mediaSource.path,
+                bitrate = Int.MAX_VALUE,
+                preferred = mediaSource.bitrate == preferences.quality.toInt(),
+                subtitleTracks = externalSubtitleList,
+                initialized = true,
+            )
+        } else {
+            val staticUrl = baseUrl.toHttpUrl().newBuilder().apply {
+                addPathSegment("Videos")
+                addPathSegment(itemId)
+                addPathSegment("stream")
+                addQueryParameter("static", "True")
+                addQueryParameter("PlaySessionId", sessionData.playSessionId)
+            }.build().toString()
+
+            Video(
+                videoTitle = "Source - ${videoBitrate}ps",
+                videoUrl = staticUrl,
+                bitrate = Int.MAX_VALUE,
+                headers = videoHeaders,
+                preferred = mediaSource.bitrate == preferences.quality.toInt(),
+                subtitleTracks = externalSubtitleList,
+                initialized = true,
+            )
+        }
 
         // Build video list
         if (mediaSource.supportsDirectStream) {
@@ -844,6 +855,9 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         private const val PREF_SAVE_TYPES_DEFAULT = false
         private const val PREF_SAVE_TYPES_VALUE = "preferred_save_types_value"
 
+        private const val PREF_USE_REMOTE_KEY = "pref_use_remote"
+        private const val PREF_USE_REMOTE_DEFAULT = true
+
         private val SUBSTITUTE_VALUES = hashMapOf(
             "title" to "",
             "originalTitle" to "",
@@ -897,6 +911,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     )
     private val SharedPreferences.saveTypes by preferences.delegate(PREF_SAVE_TYPES_KEY, PREF_SAVE_TYPES_DEFAULT)
     private var SharedPreferences.saveTypesValue by preferences.delegate(PREF_SAVE_TYPES_VALUE, "[]")
+    private val SharedPreferences.useRemote by preferences.delegate(PREF_USE_REMOTE_KEY, PREF_USE_REMOTE_DEFAULT)
 
     private fun clearCredentials() {
         preferences.libraryList = "[]"
@@ -1188,6 +1203,13 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             default = PREF_SAVE_TYPES_DEFAULT,
             title = "Save selected types filter",
             summary = "Applies to Popular, Latest, and Search",
+        )
+
+        screen.addSwitchPreference(
+            key = PREF_USE_REMOTE_KEY,
+            default = PREF_USE_REMOTE_DEFAULT,
+            title = "Use remote link",
+            summary = "Stream from remote link directly instead of proxying through jellyfin.",
         )
     }
 }
