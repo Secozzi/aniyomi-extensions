@@ -2,10 +2,10 @@
   {
     "name": "Aniyomi: Jellyfin",
     "pkg": "eu.kanade.tachiyomi.animeextension.all.jellyfin",
-    "apk": "aniyomi-all.jellyfin-v16.30.apk",
+    "apk": "aniyomi-all.jellyfin-v16.31.apk",
     "lang": "all",
-    "code": 30,
-    "version": "16.30",
+    "code": 31,
+    "version": "16.31",
     "nsfw": 0,
     "hasReadme": 0,
     "hasChangelog": 0,
