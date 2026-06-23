@@ -507,7 +507,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                 }
 
                 "Subtitle" -> {
-                    if (media.supportsExternalStream) {
+                    if (media.supportsExternalStream && media.codec != null) {
                         val subtitleUrl = baseUrl.toHttpUrl().newBuilder().apply {
                             addPathSegment("Videos")
                             addPathSegment(itemId)
