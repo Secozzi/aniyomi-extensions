@@ -536,6 +536,28 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             }
         }
 
+        val videoHeaders = headersBuilder()
+            .add("Authorization", getAuthHeader(deviceInfo, preferences.apiKey))
+            .build()
+
+        if (mediaSource.isRemote && mediaSource.path != null && preferences.useRemote) {
+            return listOf(
+                Video(
+                    videoTitle = buildString {
+                        append("Source (Remote)")
+                        mediaSource.name?.let { append("\n$it") }
+                        append("\n${mediaSource.path}")
+                    },
+                    videoUrl = mediaSource.path,
+                    bitrate = Int.MAX_VALUE,
+                    preferred = mediaSource.bitrate == preferences.quality.toInt(),
+                    subtitleTracks = externalSubtitleList,
+                    initialized = true,
+                ),
+            )
+        }
+
+        val videoBitrate = mediaSource.bitrate!!.toLong().formatBytes().replace("B", "b")
         val sessionData = getSessionData(
             videoBitrate = Int.MAX_VALUE,
             audioBitrate = Int.MAX_VALUE,
@@ -545,39 +567,23 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             subtitleStreamIndex = subtitleTrackIndex?.toString(),
         )
 
-        val videoBitrate = mediaSource.bitrate!!.toLong().formatBytes().replace("B", "b")
-        val videoHeaders = headersBuilder()
-            .add("Authorization", getAuthHeader(deviceInfo, preferences.apiKey))
-            .build()
+        val staticUrl = baseUrl.toHttpUrl().newBuilder().apply {
+            addPathSegment("Videos")
+            addPathSegment(itemId)
+            addPathSegment("stream")
+            addQueryParameter("static", "True")
+            addQueryParameter("PlaySessionId", sessionData.playSessionId)
+        }.build().toString()
 
-        val staticVideo = if (mediaSource.isRemote && mediaSource.path != null && preferences.useRemote) {
-            Video(
-                videoTitle = "Source - ${videoBitrate}ps (Remote)",
-                videoUrl = mediaSource.path,
-                bitrate = Int.MAX_VALUE,
-                preferred = mediaSource.bitrate == preferences.quality.toInt(),
-                subtitleTracks = externalSubtitleList,
-                initialized = true,
-            )
-        } else {
-            val staticUrl = baseUrl.toHttpUrl().newBuilder().apply {
-                addPathSegment("Videos")
-                addPathSegment(itemId)
-                addPathSegment("stream")
-                addQueryParameter("static", "True")
-                addQueryParameter("PlaySessionId", sessionData.playSessionId)
-            }.build().toString()
-
-            Video(
-                videoTitle = "Source - ${videoBitrate}ps",
-                videoUrl = staticUrl,
-                bitrate = Int.MAX_VALUE,
-                headers = videoHeaders,
-                preferred = mediaSource.bitrate == preferences.quality.toInt(),
-                subtitleTracks = externalSubtitleList,
-                initialized = true,
-            )
-        }
+        val staticVideo = Video(
+            videoTitle = "Source - ${videoBitrate}ps",
+            videoUrl = staticUrl,
+            bitrate = Int.MAX_VALUE,
+            headers = videoHeaders,
+            preferred = mediaSource.bitrate == preferences.quality.toInt(),
+            subtitleTracks = externalSubtitleList,
+            initialized = true,
+        )
 
         val sessionMediaSource = sessionData.mediaSources.firstOrNull()
             ?: return emptyList()
