@@ -15,7 +15,9 @@ import kotlinx.serialization.json.Json
 import okhttp3.Response
 import uy.kohesive.injekt.injectLazy
 
-abstract class Source : ConfigurableAnimeSource, AnimeHttpSource() {
+abstract class Source :
+    AnimeHttpSource(),
+    ConfigurableAnimeSource {
     protected val context: Application by injectLazy()
 
     protected open val migration: SharedPreferences.() -> Unit = {}

@@ -1,3 +1,35 @@
+@file:Suppress("ktlint:standard:kdoc")
+
+pluginManagement {
+    includeBuild("gradle/build-logic")
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+        maven(url = "https://www.jitpack.io")
+    }
+}
+
+dependencyResolutionManagement {
+    versionCatalogs {
+        create("proj") {
+            from(files("gradle/proj.versions.toml"))
+        }
+    }
+    @Suppress("UnstableApiUsage")
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    @Suppress("UnstableApiUsage")
+    repositories {
+        google()
+        mavenCentral()
+        maven(url = "https://www.jitpack.io")
+    }
+}
+
+enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
+
+rootProject.name = "AnimeExtensions"
+
 loadAllIndividualExtensions()
 
 /**
@@ -23,8 +55,4 @@ fun File.eachDir(block: (File) -> Unit) {
             block(file)
         }
     }
-}
-
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version("0.10.0")
 }

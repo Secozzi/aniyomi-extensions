@@ -197,33 +197,31 @@ class Stremio : Source() {
     }
 
     // From https://github.com/Stremio/stremio-core
-    fun List<LibraryItemDto>.sortedWith(librarySort: LibrarySort): List<LibraryItemDto> {
-        return sortedWith { a, b ->
-            when (librarySort) {
-                LibrarySort.LAST_WATCHED -> b.state.lastWatched.compareTo(a.state.lastWatched)
+    fun List<LibraryItemDto>.sortedWith(librarySort: LibrarySort): List<LibraryItemDto> = sortedWith { a, b ->
+        when (librarySort) {
+            LibrarySort.LAST_WATCHED -> b.state.lastWatched.compareTo(a.state.lastWatched)
 
-                LibrarySort.AZ -> a.name.lowercase().compareTo(b.name.lowercase())
+            LibrarySort.AZ -> a.name.lowercase().compareTo(b.name.lowercase())
 
-                LibrarySort.ZA -> b.name.lowercase().compareTo(a.name.lowercase())
+            LibrarySort.ZA -> b.name.lowercase().compareTo(a.name.lowercase())
 
-                LibrarySort.MOST_WATCHED -> b.state.timesWatched.compareTo(a.state.timesWatched)
+            LibrarySort.MOST_WATCHED -> b.state.timesWatched.compareTo(a.state.timesWatched)
 
-                LibrarySort.WATCHED -> compareValuesBy(
-                    b,
-                    a,
-                    { it.watched() },
-                    { it.state.lastWatched },
-                    { it.ctime },
-                )
+            LibrarySort.WATCHED -> compareValuesBy(
+                b,
+                a,
+                { it.watched() },
+                { it.state.lastWatched },
+                { it.ctime },
+            )
 
-                LibrarySort.NOT_WATCHED -> compareValuesBy(
-                    a,
-                    b,
-                    { it.watched() },
-                    { it.state.lastWatched },
-                    { it.ctime },
-                )
-            }
+            LibrarySort.NOT_WATCHED -> compareValuesBy(
+                a,
+                b,
+                { it.watched() },
+                { it.state.lastWatched },
+                { it.ctime },
+            )
         }
     }
 
@@ -238,9 +236,7 @@ class Stremio : Source() {
         vals.map { it.first }.toTypedArray(),
         state,
     ) {
-        fun getSelection(): T {
-            return vals[state].second
-        }
+        fun getSelection(): T = vals[state].second
     }
 
     var selectedCatalogIndex: Int = 0
@@ -358,17 +354,18 @@ class Stremio : Source() {
         NOT_WATCHED,
     }
 
-    class LibrarySortFilter : UriPartFilter<LibrarySort>(
-        "Library Sort",
-        arrayOf(
-            "Last Watched" to LibrarySort.LAST_WATCHED,
-            "A-Z" to LibrarySort.AZ,
-            "Z-A" to LibrarySort.ZA,
-            "Most Watched" to LibrarySort.MOST_WATCHED,
-            "Watched" to LibrarySort.WATCHED,
-            "Not Watched" to LibrarySort.NOT_WATCHED,
-        ),
-    )
+    class LibrarySortFilter :
+        UriPartFilter<LibrarySort>(
+            "Library Sort",
+            arrayOf(
+                "Last Watched" to LibrarySort.LAST_WATCHED,
+                "A-Z" to LibrarySort.AZ,
+                "Z-A" to LibrarySort.ZA,
+                "Most Watched" to LibrarySort.MOST_WATCHED,
+                "Watched" to LibrarySort.WATCHED,
+                "Not Watched" to LibrarySort.NOT_WATCHED,
+            ),
+        )
 
     override fun getFilterList(): AnimeFilterList {
         if (preferences.authKey.isNotBlank() && preferences.fetchLibrary) {
@@ -447,20 +444,18 @@ class Stremio : Source() {
         return anime
     }
 
-    private suspend fun getMeta(addonDto: AddonDto, type: String, id: String): MetaDto? {
-        return try {
-            client.get(
-                addonDto.getTransportUrl().newBuilder().apply {
-                    addPathSegment("meta")
-                    addPathSegment(type)
-                    addPathSegment(id)
-                }.build().toString() +
-                    ".json",
-                headers,
-            ).parseAs<MetaResultDto>().meta
-        } catch (_: Exception) {
-            null
-        }
+    private suspend fun getMeta(addonDto: AddonDto, type: String, id: String): MetaDto? = try {
+        client.get(
+            addonDto.getTransportUrl().newBuilder().apply {
+                addPathSegment("meta")
+                addPathSegment(type)
+                addPathSegment(id)
+            }.build().toString() +
+                ".json",
+            headers,
+        ).parseAs<MetaResultDto>().meta
+    } catch (_: Exception) {
+        null
     }
 
     // ============================== Episodes ==============================
@@ -614,39 +609,37 @@ class Stremio : Source() {
         )
     }
 
-    private suspend fun getSubtitleList(videoData: VideoData): List<Track> {
-        return addonManager.getAddons()
-            .filter { it.manifest.isValidResource(AddonResource.SUBTITLES, videoData.type, videoData.id) }
-            .parallelCatchingFlatMap { addon ->
-                val hints = buildList(3) {
-                    videoData.videoHash?.let {
-                        add("videoHash=${it.urlEncode()}")
-                    }
-                    videoData.videoSize?.let {
-                        add("videoSize=$it")
-                    }
-                    videoData.filename?.let {
-                        add("filename=${it.urlEncode()}")
-                    }
-                }.joinToString("&")
+    private suspend fun getSubtitleList(videoData: VideoData): List<Track> = addonManager.getAddons()
+        .filter { it.manifest.isValidResource(AddonResource.SUBTITLES, videoData.type, videoData.id) }
+        .parallelCatchingFlatMap { addon ->
+            val hints = buildList(3) {
+                videoData.videoHash?.let {
+                    add("videoHash=${it.urlEncode()}")
+                }
+                videoData.videoSize?.let {
+                    add("videoSize=$it")
+                }
+                videoData.filename?.let {
+                    add("filename=${it.urlEncode()}")
+                }
+            }.joinToString("&")
 
-                val url = addon.getTransportUrl().newBuilder().apply {
-                    addPathSegment("subtitles")
-                    addPathSegment(videoData.type)
-                    addPathSegment(videoData.id)
+            val url = addon.getTransportUrl().newBuilder().apply {
+                addPathSegment("subtitles")
+                addPathSegment(videoData.type)
+                addPathSegment(videoData.id)
 
-                    if (hints.isNotEmpty()) {
-                        addPathSegment(hints)
-                    }
-                }.build().toString() +
-                    ".json"
+                if (hints.isNotEmpty()) {
+                    addPathSegment(hints)
+                }
+            }.build().toString() +
+                ".json"
 
-                client.get(url, headers)
-                    .parseAs<SubtitleResultDto>()
-                    .subtitles
-                    .map { s -> Track(url = s.url, lang = "(${addon.manifest.name}) ${s.lang}") }
-            }
-    }
+            client.get(url, headers)
+                .parseAs<SubtitleResultDto>()
+                .subtitles
+                .map { s -> Track(url = s.url, lang = "(${addon.manifest.name}) ${s.lang}") }
+        }
 
     // ============================= Utilities ==============================
 

@@ -39,25 +39,21 @@ fun getAuthHeader(deviceInfo: Jellyfin.DeviceInfo, token: String? = null): Strin
         )
 }
 
-fun String.getImageUrl(baseUrl: String, id: String, name: String = "Primary", index: Int? = null): String {
-    return baseUrl.toHttpUrl().newBuilder().apply {
-        addPathSegment("Items")
-        addPathSegment(id)
-        addPathSegment("Images")
-        addPathSegment(name)
-        index?.let { addPathSegment(it.toString()) }
-        addQueryParameter("tag", this@getImageUrl)
-    }.build().toString()
-}
+fun String.getImageUrl(baseUrl: String, id: String, name: String = "Primary", index: Int? = null): String = baseUrl.toHttpUrl().newBuilder().apply {
+    addPathSegment("Items")
+    addPathSegment(id)
+    addPathSegment("Images")
+    addPathSegment(name)
+    index?.let { addPathSegment(it.toString()) }
+    addQueryParameter("tag", this@getImageUrl)
+}.build().toString()
 
 object PascalCaseToCamelCase : JsonNamingStrategy {
     override fun serialNameForJson(
         descriptor: SerialDescriptor,
         elementIndex: Int,
         serialName: String,
-    ): String {
-        return serialName.replaceFirstChar { it.uppercase() }
-    }
+    ): String = serialName.replaceFirstChar { it.uppercase() }
 }
 
 object Constants {

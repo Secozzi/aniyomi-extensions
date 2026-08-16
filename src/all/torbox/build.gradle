@@ -1,9 +1,0 @@
-ext {
-    extName = 'Torbox'
-    extClass = '.Torbox'
-    extVersionCode = 2
-    extNames = ["Torbox"]
-    versionId = 2
-}
-
-apply from: "$rootDir/common.gradle"

@@ -28,7 +28,9 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okio.IOException
 
 @Suppress("unused")
-class Torbox : Source(), UnmeteredSource {
+class Torbox :
+    Source(),
+    UnmeteredSource {
 
     override val baseUrl = "https://api.torbox.app"
 
@@ -174,19 +176,18 @@ class Torbox : Source(), UnmeteredSource {
         name: String,
         values: List<CheckboxFilter>,
     ) : AnimeFilter.Group<CheckboxFilter>(name, values) {
-        fun getSelection(): List<String> {
-            return state.filter { it.state }.map { it.id }
-        }
+        fun getSelection(): List<String> = state.filter { it.state }.map { it.id }
     }
 
-    class TypeFilter : CheckboxListFilter(
-        "Types",
-        listOf(
-            CheckboxFilter("Torrents", TORRENT),
-            CheckboxFilter("Web Downloads", WEBDL),
-            CheckboxFilter("Usenet Downloads", USENET),
-        ),
-    )
+    class TypeFilter :
+        CheckboxListFilter(
+            "Types",
+            listOf(
+                CheckboxFilter("Torrents", TORRENT),
+                CheckboxFilter("Web Downloads", WEBDL),
+                CheckboxFilter("Usenet Downloads", USENET),
+            ),
+        )
 
     class SortFilter(
         sortType: SortType = SortType.Default,
@@ -196,9 +197,7 @@ class Torbox : Source(), UnmeteredSource {
         SortType.entries.map { it.displayName }.toTypedArray(),
         Selection(SortType.entries.indexOfFirst { it == sortType }, ascending),
     ) {
-        fun getSelection(): Pair<SortType, Boolean> {
-            return SortType.entries[state!!.index] to state!!.ascending
-        }
+        fun getSelection(): Pair<SortType, Boolean> = SortType.entries[state!!.index] to state!!.ascending
     }
 
     enum class SortType(val displayName: String) {
@@ -215,12 +214,10 @@ class Torbox : Source(), UnmeteredSource {
         ETA("ETA"),
     }
 
-    override fun getFilterList(): AnimeFilterList {
-        return AnimeFilterList(
-            TypeFilter(),
-            SortFilter(),
-        )
-    }
+    override fun getFilterList(): AnimeFilterList = AnimeFilterList(
+        TypeFilter(),
+        SortFilter(),
+    )
 
     // =========================== Anime Details ============================
 

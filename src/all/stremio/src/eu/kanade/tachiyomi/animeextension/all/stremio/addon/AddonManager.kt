@@ -72,16 +72,14 @@ class AddonManager(
     }
 
     context(source: Source)
-    private suspend fun getFromUser(authKey: String): List<AddonDto> {
-        return with(source) {
-            val body = buildJsonObject {
-                put("authKey", authKey)
-                put("type", "AddonCollectionGet")
-                put("update", true)
-            }.toRequestBody()
+    private suspend fun getFromUser(authKey: String): List<AddonDto> = with(source) {
+        val body = buildJsonObject {
+            put("authKey", authKey)
+            put("type", "AddonCollectionGet")
+            put("update", true)
+        }.toRequestBody()
 
-            source.client.post("${Stremio.API_URL}/api/addonCollectionGet", body = body)
-                .parseAs<ResultDto<AddonResultDto>>().result.addons
-        }
+        source.client.post("${Stremio.API_URL}/api/addonCollectionGet", body = body)
+            .parseAs<ResultDto<AddonResultDto>>().result.addons
     }
 }

@@ -1,7 +1,9 @@
 plugins {
-    id("extensions.android.library")
-    id("extensions.kotlin")
-    id("extensions.lint")
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.serialization)
+
+    alias(proj.plugins.android.base)
+    alias(proj.plugins.spotless)
 }
 
 android {

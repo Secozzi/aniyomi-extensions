@@ -59,7 +59,9 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.IOException
 import java.security.MessageDigest
 
-class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
+class Jellyfin(private val suffix: String) :
+    Source(),
+    UnmeteredSource {
     override val json: Json by lazy {
         Json {
             isLenient = false
@@ -206,7 +208,8 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         val queryParam: String,
         val querySeparator: String = ",",
         val transform: (T) -> String = { it.toString() },
-    ) : AnimeFilter.Group<CheckboxFilter<T>>(name, values), UrlFilter {
+    ) : AnimeFilter.Group<CheckboxFilter<T>>(name, values),
+        UrlFilter {
         override fun addToUrl(url: HttpUrl.Builder) {
             val selected = state.filter { it.state }
 
@@ -219,17 +222,18 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         }
     }
 
-    class TypeFilter(selected: List<ItemType>) : CheckboxListFilter<ItemType>(
-        "Select type(s)",
-        listOf(
-            CheckboxFilter("Movies", ItemType.Movie, ItemType.Movie in selected),
-            CheckboxFilter("Series", ItemType.Series, ItemType.Series in selected),
-            CheckboxFilter("Seasons", ItemType.Season, ItemType.Season in selected),
-            CheckboxFilter("Collections", ItemType.BoxSet, ItemType.BoxSet in selected),
-        ),
-        "IncludeItemTypes",
-        transform = { it.name },
-    )
+    class TypeFilter(selected: List<ItemType>) :
+        CheckboxListFilter<ItemType>(
+            "Select type(s)",
+            listOf(
+                CheckboxFilter("Movies", ItemType.Movie, ItemType.Movie in selected),
+                CheckboxFilter("Series", ItemType.Series, ItemType.Series in selected),
+                CheckboxFilter("Seasons", ItemType.Season, ItemType.Season in selected),
+                CheckboxFilter("Collections", ItemType.BoxSet, ItemType.BoxSet in selected),
+            ),
+            "IncludeItemTypes",
+            transform = { it.name },
+        )
 
     class SortFilter :
         AnimeFilter.Sort(
@@ -260,38 +264,41 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         }
     }
 
-    class FilterFilter : CheckboxListFilter<String>(
-        "Filters",
-        listOf(
-            CheckboxFilter("Played", "IsPlayed"),
-            CheckboxFilter("Unplayed", "IsUnPlayed"),
-            CheckboxFilter("Resumable", "IsResumable"),
-            CheckboxFilter("Favorites", "IsFavorite"),
-        ),
-        "Filters",
-    )
+    class FilterFilter :
+        CheckboxListFilter<String>(
+            "Filters",
+            listOf(
+                CheckboxFilter("Played", "IsPlayed"),
+                CheckboxFilter("Unplayed", "IsUnPlayed"),
+                CheckboxFilter("Resumable", "IsResumable"),
+                CheckboxFilter("Favorites", "IsFavorite"),
+            ),
+            "Filters",
+        )
 
-    class StatusFilter : CheckboxListFilter<String>(
-        "Status",
-        listOf(
-            CheckboxFilter("Continuing", "Continuing"),
-            CheckboxFilter("Ended", "Ended"),
-            CheckboxFilter("Not yet released", "Unreleased"),
-        ),
-        "SeriesStatus",
-    )
+    class StatusFilter :
+        CheckboxListFilter<String>(
+            "Status",
+            listOf(
+                CheckboxFilter("Continuing", "Continuing"),
+                CheckboxFilter("Ended", "Ended"),
+                CheckboxFilter("Not yet released", "Unreleased"),
+            ),
+            "SeriesStatus",
+        )
 
-    class FeaturesFilter : CheckboxListFilter<String>(
-        "Features",
-        listOf(
-            CheckboxFilter("Subtitles", "HasSubtitles"),
-            CheckboxFilter("Trailer", "HasTrailer"),
-            CheckboxFilter("Special Features", "HasSpecialFeature"),
-            CheckboxFilter("Theme song", "HasThemeSong"),
-            CheckboxFilter("Theme video", "HasThemeVideo"),
-        ),
-        "unused",
-    ) {
+    class FeaturesFilter :
+        CheckboxListFilter<String>(
+            "Features",
+            listOf(
+                CheckboxFilter("Subtitles", "HasSubtitles"),
+                CheckboxFilter("Trailer", "HasTrailer"),
+                CheckboxFilter("Special Features", "HasSpecialFeature"),
+                CheckboxFilter("Theme song", "HasThemeSong"),
+                CheckboxFilter("Theme video", "HasThemeVideo"),
+            ),
+            "unused",
+        ) {
         override fun addToUrl(url: HttpUrl.Builder) {
             state.filter { it.state }.forEach {
                 url.addQueryParameter(it.id, "true")
@@ -299,32 +306,36 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         }
     }
 
-    class GenreFilter(genres: List<String>) : CheckboxListFilter<String>(
-        "Genres",
-        genres.map { CheckboxFilter(it, it) },
-        "Genres",
-        querySeparator = "|",
-    )
+    class GenreFilter(genres: List<String>) :
+        CheckboxListFilter<String>(
+            "Genres",
+            genres.map { CheckboxFilter(it, it) },
+            "Genres",
+            querySeparator = "|",
+        )
 
-    class RatingFilter(ratings: List<String>) : CheckboxListFilter<String>(
-        "Parental Ratings",
-        ratings.map { CheckboxFilter(it, it) },
-        "OfficialRatings",
-        querySeparator = "|",
-    )
+    class RatingFilter(ratings: List<String>) :
+        CheckboxListFilter<String>(
+            "Parental Ratings",
+            ratings.map { CheckboxFilter(it, it) },
+            "OfficialRatings",
+            querySeparator = "|",
+        )
 
-    class TagFilter(tags: List<String>) : CheckboxListFilter<String>(
-        "Tags",
-        tags.map { CheckboxFilter(it, it) },
-        "Tags",
-        querySeparator = "|",
-    )
+    class TagFilter(tags: List<String>) :
+        CheckboxListFilter<String>(
+            "Tags",
+            tags.map { CheckboxFilter(it, it) },
+            "Tags",
+            querySeparator = "|",
+        )
 
-    class YearFilter(years: List<Int>) : CheckboxListFilter<Int>(
-        "Years",
-        years.map { CheckboxFilter(it.toString(), it) },
-        "Years",
-    )
+    class YearFilter(years: List<Int>) :
+        CheckboxListFilter<Int>(
+            "Years",
+            years.map { CheckboxFilter(it.toString(), it) },
+            "Years",
+        )
 
     private var itemTypes by LazyMutable {
         if (preferences.saveTypes) {
@@ -483,9 +494,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
     // ============================ Video Links =============================
 
-    override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
-        return getVideoListFromEpisode(episode).toHosterList()
-    }
+    override suspend fun getHosterList(episode: SEpisode): List<Hoster> = getVideoListFromEpisode(episode).toHosterList()
 
     private suspend fun getVideoListFromEpisode(episode: SEpisode): List<Video> {
         val item = client.get(episode.url).parseAs<ItemDto>()
@@ -688,11 +697,9 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         }
     }
 
-    override fun List<Video>.sortVideos(): List<Video> {
-        return sortedWith(
-            compareBy { it.bitrate!! },
-        ).reversed()
-    }
+    override fun List<Video>.sortVideos(): List<Video> = sortedWith(
+        compareBy { it.bitrate!! },
+    ).reversed()
 
     // =============================== Login ================================
 
@@ -772,22 +779,20 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
     // ============================= Utilities ==============================
 
-    private fun getItemsUrl(startIndex: Int): HttpUrl {
-        return baseUrl.toHttpUrl().newBuilder().apply {
-            addPathSegment("Users")
-            addPathSegment(preferences.userId)
-            addPathSegment("Items")
-            addQueryParameter("StartIndex", startIndex.toString())
-            addQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
-            addQueryParameter("Recursive", "true")
-            addQueryParameter("SortBy", "SortName")
-            addQueryParameter("SortOrder", "Ascending")
-            addQueryParameter("IncludeItemTypes", itemTypes.joinToString(",") { it.name })
-            addQueryParameter("ImageTypeLimit", "1")
-            addQueryParameter("ParentId", preferences.selectedLibrary)
-            addQueryParameter("EnableImageTypes", "Primary")
-        }.build()
-    }
+    private fun getItemsUrl(startIndex: Int): HttpUrl = baseUrl.toHttpUrl().newBuilder().apply {
+        addPathSegment("Users")
+        addPathSegment(preferences.userId)
+        addPathSegment("Items")
+        addQueryParameter("StartIndex", startIndex.toString())
+        addQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
+        addQueryParameter("Recursive", "true")
+        addQueryParameter("SortBy", "SortName")
+        addQueryParameter("SortOrder", "Ascending")
+        addQueryParameter("IncludeItemTypes", itemTypes.joinToString(",") { it.name })
+        addQueryParameter("ImageTypeLimit", "1")
+        addQueryParameter("ParentId", preferences.selectedLibrary)
+        addQueryParameter("EnableImageTypes", "Primary")
+    }.build()
 
     private fun checkPreferences() {
         if (preferences.selectedLibrary.isBlank()) {

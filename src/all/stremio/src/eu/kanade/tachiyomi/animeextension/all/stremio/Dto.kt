@@ -49,11 +49,9 @@ data class MetaResultDto(
 class ObjectToListSerializer<T : Any>(
     tSerializer: KSerializer<T>,
 ) : JsonTransformingSerializer<List<T>>(ListSerializer(tSerializer)) {
-    override fun transformDeserialize(element: JsonElement): JsonElement {
-        return when (element) {
-            JsonNull, is JsonArray -> element
-            is JsonPrimitive, is JsonObject -> JsonArray(listOf(element))
-        }
+    override fun transformDeserialize(element: JsonElement): JsonElement = when (element) {
+        JsonNull, is JsonArray -> element
+        is JsonPrimitive, is JsonObject -> JsonArray(listOf(element))
     }
 }
 
@@ -136,9 +134,7 @@ data class LibraryItemDto(
         thumbnail_url = poster
     }
 
-    fun watched(): Boolean {
-        return state.timesWatched > 0
-    }
+    fun watched(): Boolean = state.timesWatched > 0
 }
 
 @Serializable

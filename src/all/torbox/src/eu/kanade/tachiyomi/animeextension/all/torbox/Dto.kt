@@ -35,24 +35,22 @@ data class ListDataDto(
     val eta: Long,
     val files: List<FileDto>? = null,
 ) {
-    fun toInfoDataDto(type: String): InfoDataDto {
-        return InfoDataDto(
-            id = this.id,
-            name = this.name,
-            createdAt = this.createdAt,
-            updateAt = this.updateAt,
-            cachedAt = this.cachedAt,
-            progress = this.progress,
-            downloadState = this.downloadState,
-            size = this.size,
-            ratio = this.ratio,
-            downloadSpeed = this.downloadSpeed,
-            uploadSpeed = this.uploadSpeed,
-            eta = this.eta,
-            files = this.files.orEmpty(),
-            type = type,
-        )
-    }
+    fun toInfoDataDto(type: String): InfoDataDto = InfoDataDto(
+        id = this.id,
+        name = this.name,
+        createdAt = this.createdAt,
+        updateAt = this.updateAt,
+        cachedAt = this.cachedAt,
+        progress = this.progress,
+        downloadState = this.downloadState,
+        size = this.size,
+        ratio = this.ratio,
+        downloadSpeed = this.downloadSpeed,
+        uploadSpeed = this.uploadSpeed,
+        eta = this.eta,
+        files = this.files.orEmpty(),
+        type = type,
+    )
 }
 
 @Serializable
@@ -95,27 +93,25 @@ data class InfoDataDto(
     val type: String,
 ) {
     context(source: Source)
-    fun toSAnime(trimName: Boolean): SAnime {
-        return SAnime.create().apply {
-            this.title = if (trimName) name.trimInfo() else name
-            this.description = buildString {
-                append("Type: ")
-                appendLine(
-                    type.replaceFirstChar {
-                        if (it.isLowerCase()) it.titlecase(getDefault()) else it.toString()
-                    },
-                )
-                append("Created at: ")
-                appendLine(createdAt.replace("T", " ").replace("Z", ""))
-                append("Download state: ")
-                appendLine(downloadState)
-                append("Size: ")
-                append(size.formatBytes())
-            }
-            this.url = InfoDetailsDto(
-                type = type,
-                id = id,
-            ).toJsonString()
+    fun toSAnime(trimName: Boolean): SAnime = SAnime.create().apply {
+        this.title = if (trimName) name.trimInfo() else name
+        this.description = buildString {
+            append("Type: ")
+            appendLine(
+                type.replaceFirstChar {
+                    if (it.isLowerCase()) it.titlecase(getDefault()) else it.toString()
+                },
+            )
+            append("Created at: ")
+            appendLine(createdAt.replace("T", " ").replace("Z", ""))
+            append("Download state: ")
+            appendLine(downloadState)
+            append("Size: ")
+            append(size.formatBytes())
         }
+        this.url = InfoDetailsDto(
+            type = type,
+            id = id,
+        ).toJsonString()
     }
 }
