@@ -100,6 +100,7 @@ class ExtensionPlugin : Plugin<Project> {
 
         val versionCodeProvider = extension.versionCode
         val extensionLib = proj.versions.ext.lib.get()
+        val versionNameProvider = versionCodeProvider.map { "$extensionLib.$it" }
         val torrentProvider = extension.torrent.orElse(false)
 
         val manifestTask = tasks.register<GenerateManifestTask>("generateExtensionManifest") {
@@ -121,13 +122,13 @@ class ExtensionPlugin : Plugin<Project> {
 
                 variant.outputs.forEach { output ->
                     output.versionCode.set(versionCodeProvider)
-                    output.versionName.set(extensionLib)
+                    output.versionName.set(versionNameProvider)
                 }
             }
         }
 
         base {
-            archivesName.set("aniyomi-$applicationIdSuffix-v$extensionLib")
+            archivesName.set("aniyomi-$applicationIdSuffix-v$versionNameProvider")
         }
 
         dependencies {

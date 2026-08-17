@@ -8,9 +8,9 @@ extension {
     name = "Jellyfin"
     qname = "JellyfinFactory"
     versionCode = 33
-    versionId = 2
+    versionId = 3
     contentWarning = ContentWarning.SAFE
-    sourceNames = listOf("Jellyfin", "Jellyfin (2)", "Jellyfin (3)")
+    sourceNames = listOf("Jellyfin (1)", "Jellyfin (2)", "Jellyfin (3)")
 }
 
 dependencies {
