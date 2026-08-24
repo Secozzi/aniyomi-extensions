@@ -15,20 +15,23 @@ import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.animesource.model.SAnimeEpisodeUpdate
+import eu.kanade.tachiyomi.animesource.model.SAnimeSeasonUpdate
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
-import eu.kanade.tachiyomi.network.get
-import eu.kanade.tachiyomi.network.post
-import eu.kanade.tachiyomi.util.parallelCatchingFlatMap
 import extensions.utils.LazyMutable
 import extensions.utils.Source
 import extensions.utils.addEditTextPreference
 import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
 import extensions.utils.firstInstance
+import extensions.utils.get
+import extensions.utils.getString
 import extensions.utils.getSwitchPreference
+import extensions.utils.parallelCatchingFlatMap
 import extensions.utils.parseAs
+import extensions.utils.post
 import extensions.utils.toRequestBody
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -152,7 +155,6 @@ class Stremio : Source() {
                 }
             }.build().toString() +
                 ".json",
-            headers,
         )
 
         val data = response.parseAs<CatalogListDto>()
@@ -316,7 +318,6 @@ class Stremio : Source() {
                 libraryItems = client.post(
                     "$API_URL/api/datastoreGet",
                     body = body,
-                    headers = headers,
                 ).parseAs<ResultDto<List<LibraryItemDto>>>().result
                     .filterNot { it.removed }
 
@@ -418,7 +419,7 @@ class Stremio : Source() {
         return AnimeFilterList(filters)
     }
 
-    // =========================== Anime Details ============================
+    // =========================== Anime Updates ============================
 
     override fun getAnimeUrl(anime: SAnime): String {
         val (_, type, id) = anime.url.getUrlParts()
@@ -427,38 +428,6 @@ class Stremio : Source() {
             .fragment("/detail/$type/$id")
             .build().toString()
     }
-
-    override suspend fun getAnimeDetails(anime: SAnime): SAnime {
-        val (_, type, id) = anime.url.getUrlParts()
-
-        val validAddons = addonManager.getAddons().filter {
-            it.manifest.isValidResource(AddonResource.META, type, id)
-        }
-
-        validAddons.forEach { addon ->
-            getMeta(addon, type, id)?.let {
-                return it.toSAnime(preferences.splitSeasons)
-            }
-        }
-
-        return anime
-    }
-
-    private suspend fun getMeta(addonDto: AddonDto, type: String, id: String): MetaDto? = try {
-        client.get(
-            addonDto.getTransportUrl().newBuilder().apply {
-                addPathSegment("meta")
-                addPathSegment(type)
-                addPathSegment(id)
-            }.build().toString() +
-                ".json",
-            headers,
-        ).parseAs<MetaResultDto>().meta
-    } catch (_: Exception) {
-        null
-    }
-
-    // ============================== Episodes ==============================
 
     override fun getEpisodeUrl(episode: SEpisode): String {
         val (_, type, id) = episode.url.getUrlParts()
@@ -469,7 +438,7 @@ class Stremio : Source() {
             .build().toString()
     }
 
-    override suspend fun getSeasonList(anime: SAnime): List<SAnime> {
+    private suspend fun getMeta(anime: SAnime): MetaDto? {
         val (_, type, id) = anime.url.getUrlParts()
 
         val validAddons = addonManager.getAddons().filter {
@@ -477,93 +446,112 @@ class Stremio : Source() {
         }
 
         validAddons.forEach { addon ->
-            getMeta(addon, type, id)?.let { meta ->
-                meta.videos?.takeIf { it.isNotEmpty() }?.let { videos ->
-                    return videos.distinctBy { it.season }.map {
-                        SAnime.create().apply {
-                            title = buildString {
-                                if (preferences.concatNames) {
-                                    append(anime.title)
-                                    append(" ")
-                                }
-                                append("Season ")
-                                append(it.season ?: 0)
-                            }
-                            url = "${it.season ?: 0}-$type-$id"
-                            season_number = it.season?.toDouble() ?: 0.0
-                            fetch_type = FetchType.Episodes
+            try {
+                val meta = client.get(
+                    addon.getTransportUrl().newBuilder().apply {
+                        addPathSegment("meta")
+                        addPathSegment(type)
+                        addPathSegment(id)
+                    }.build().toString() +
+                        ".json",
+                ).parseAs<MetaResultDto>().meta
 
-                            thumbnail_url = anime.thumbnail_url
-                            genre = anime.genre
-                            author = anime.author
-                            artist = anime.artist
-                            description = anime.description
-                            status = anime.status
+                return meta
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+            }
+        }
+
+        return null
+    }
+
+    override suspend fun getAnimeSeasonUpdate(
+        anime: SAnime,
+        seasons: List<SAnime>,
+        fetchDetails: Boolean,
+        fetchSeasons: Boolean,
+    ): SAnimeSeasonUpdate {
+        val (_, type, id) = anime.url.getUrlParts()
+        val meta = getMeta(anime) ?: return SAnimeSeasonUpdate(anime, seasons)
+
+        val anime = meta.toSAnime(preferences.splitSeasons)
+        val newSeasons = meta.videos?.takeIf { it.isNotEmpty() }?.let { videos ->
+            videos.distinctBy { it.season }.map {
+                SAnime.create().apply {
+                    title = buildString {
+                        if (preferences.concatNames) {
+                            append(anime.title)
+                            append(" ")
                         }
+                        append("Season ")
+                        append(it.season ?: 0)
                     }
+                    url = "${it.season ?: 0}-$type-$id"
+                    season_number = it.season?.toDouble() ?: 0.0
+                    fetch_type = FetchType.Episodes
+
+                    thumbnail_url = anime.thumbnail_url
+                    genre = anime.genre
+                    author = anime.author
+                    artist = anime.artist
+                    description = anime.description
+                    status = anime.status
                 }
             }
         }
 
-        return emptyList()
+        return SAnimeSeasonUpdate(anime, newSeasons ?: seasons)
     }
 
-    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
+    override suspend fun getAnimeEpisodeUpdate(
+        anime: SAnime,
+        episodes: List<SEpisode>,
+        fetchDetails: Boolean,
+        fetchEpisodes: Boolean,
+    ): SAnimeEpisodeUpdate {
         val (season, type, id) = anime.url.getUrlParts()
+        val meta = getMeta(anime) ?: return SAnimeEpisodeUpdate(anime, episodes)
 
-        if (type.equals("movie", true)) {
-            return listOf(
+        val anime = meta.toSAnime(preferences.splitSeasons)
+        val newEpisodes = if (type.equals("movie", true)) {
+            listOf(
                 SEpisode.create().apply {
                     name = "Movie"
                     episode_number = 1F
                     url = "$type-$id"
                 },
             )
-        }
+        } else if (type.equals("tv", true) && meta.streams?.isNotEmpty() == true) {
+            // TV
+            val stream = meta.streams.first()
+            listOf(
+                SEpisode.create().apply {
+                    name = "${stream.description ?: ""} (${stream.name})".replace("()", "").trim()
+                    episode_number = 1F
+                    url = "$type-$id"
+                },
+            )
+        } else {
+            meta.videos?.takeIf { it.isNotEmpty() }?.let { videos ->
+                val episodeData = if (season == "#") {
+                    videos
+                } else {
+                    videos.filter { it.season == season.toInt() }
+                }
 
-        val validAddons = addonManager.getAddons().filter {
-            it.manifest.isValidResource(AddonResource.META, type, id)
-        }
-
-        val nameTemplate = preferences.nameTemplate
-        val scanlatorTemplate = preferences.scanlatorTemplate
-
-        validAddons.forEach { addon ->
-            getMeta(addon, type, id)?.let { meta ->
-                // Tv
-                if (type.equals("tv", true) && meta.streams?.isNotEmpty() == true) {
-                    val stream = meta.streams.first()
-                    return listOf(
-                        SEpisode.create().apply {
-                            name = "${stream.description ?: ""} (${stream.name})".replace("()", "").trim()
-                            episode_number = 1F
-                            url = "$type-$id"
-                        },
+                episodeData
+                    .sortedWith(
+                        compareBy(
+                            { it.season ?: 1 },
+                            { it.episode ?: 1 },
+                        ),
                     )
-                }
-
-                // Other
-                meta.videos?.takeIf { it.isNotEmpty() }?.let { videos ->
-                    val episodeData = if (season == "#") {
-                        videos
-                    } else {
-                        videos.filter { it.season == season.toInt() }
-                    }
-
-                    return episodeData
-                        .sortedWith(
-                            compareBy(
-                                { it.season ?: 1 },
-                                { it.episode ?: 1 },
-                            ),
-                        )
-                        .reversed()
-                        .map { it.toSEpisode(nameTemplate, scanlatorTemplate, type) }
-                }
+                    .reversed()
+                    .map { it.toSEpisode(preferences.nameTemplate, preferences.scanlatorTemplate, type) }
             }
         }
 
-        return emptyList()
+        return SAnimeEpisodeUpdate(anime, newEpisodes ?: episodes)
     }
 
     // ============================ Video Links =============================
@@ -584,7 +572,9 @@ class Stremio : Source() {
                 Hoster(
                     hosterUrl = url,
                     hosterName = addon.manifest.name,
-                    internalData = episode.url,
+                    memo = buildJsonObject {
+                        put("episodeUrl", episode.url)
+                    },
                 )
             }
     }
@@ -592,16 +582,16 @@ class Stremio : Source() {
     override suspend fun getVideoList(hoster: Hoster): List<Video> {
         val serverUrl = preferences.serverUrl.takeIf { it.isNotEmpty() }
 
-        val videoList = client.get(hoster.hosterUrl, headers)
+        val videoList = client.get(hoster.hosterUrl)
             .parseAs<StreamResultDto>()
-            .streams.mapNotNull { v -> v.toVideo(serverUrl, hoster.internalData) }
+            .streams.mapNotNull { v -> v.toVideo(serverUrl, hoster.memo.getString("episodeUrl")) }
 
         val videoLimit = preferences.videoLimit.toInt()
         return if (videoLimit == 0) videoList else videoList.take(videoLimit)
     }
 
-    override suspend fun resolveVideo(video: Video): Video? {
-        val data = video.internalData.parseAs<VideoData>()
+    override suspend fun resolveVideo(video: Video): Video {
+        val data = video.memo.getString("videoData").parseAs<VideoData>()
         val subtitleList = getSubtitleList(data)
 
         return video.copy(
@@ -635,7 +625,7 @@ class Stremio : Source() {
             }.build().toString() +
                 ".json"
 
-            client.get(url, headers)
+            client.get(url)
                 .parseAs<SubtitleResultDto>()
                 .subtitles
                 .map { s -> Track(url = s.url, lang = "(${addon.manifest.name}) ${s.lang}") }

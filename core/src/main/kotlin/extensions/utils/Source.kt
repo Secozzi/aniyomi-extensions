@@ -13,6 +13,8 @@ import uy.kohesive.injekt.injectLazy
 abstract class Source :
     AnimeHttpSource(),
     ConfigurableAnimeSource {
+    override val supportsRelatedAnime = false
+
     protected val context: Application by injectLazy()
 
     protected open val migration: SharedPreferences.() -> Unit = {}

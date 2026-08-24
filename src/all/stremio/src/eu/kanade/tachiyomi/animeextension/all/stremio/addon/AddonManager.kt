@@ -5,12 +5,12 @@ import eu.kanade.tachiyomi.animeextension.all.stremio.Stremio
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonResultDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.ManifestDto
-import eu.kanade.tachiyomi.network.get
-import eu.kanade.tachiyomi.network.post
-import eu.kanade.tachiyomi.util.parallelMapNotNull
 import extensions.utils.PreferenceDelegate
 import extensions.utils.Source
+import extensions.utils.get
+import extensions.utils.parallelMapNotNull
 import extensions.utils.parseAs
+import extensions.utils.post
 import extensions.utils.toRequestBody
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
