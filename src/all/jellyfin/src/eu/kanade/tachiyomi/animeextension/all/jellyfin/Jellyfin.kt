@@ -671,14 +671,19 @@ class Jellyfin(private val suffix: String) :
                     headers = videoHeaders,
                     preferred = it.videoBitrate == preferences.quality.toInt(),
                     subtitleTracks = subtitleList,
-                    internalData = TranscodingInfo(
-                        videoBitrate = it.videoBitrate,
-                        audioBitrate = it.audioBitrate,
-                        mediaId = mediaSource.id,
-                        itemId = itemId,
-                        audioStreamIndex = audioTrackIndex?.toString(),
-                        subtitleStreamIndex = subtitleTrackIndex?.toString(),
-                    ).toJsonString(),
+                    memo = buildJsonObject {
+                        put(
+                            "transcodingInfo",
+                            TranscodingInfo(
+                                videoBitrate = it.videoBitrate,
+                                audioBitrate = it.audioBitrate,
+                                mediaId = mediaSource.id,
+                                itemId = itemId,
+                                audioStreamIndex = audioTrackIndex?.toString(),
+                                subtitleStreamIndex = subtitleTrackIndex?.toString(),
+                            ).toJsonString(),
+                        )
+                    },
                 ),
             )
         }
@@ -735,7 +740,7 @@ class Jellyfin(private val suffix: String) :
     }
 
     override suspend fun resolveVideo(video: Video): Video? {
-        val transcodingInfo = video.internalData.parseAs<TranscodingInfo>()
+        val transcodingInfo = video.memo.getString("transcodingInfo").parseAs<TranscodingInfo>()
         val sessionData = getSessionData(
             videoBitrate = transcodingInfo.videoBitrate,
             audioBitrate = transcodingInfo.audioBitrate,
