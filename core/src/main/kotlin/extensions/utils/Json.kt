@@ -3,7 +3,8 @@ package extensions.utils
 // From https://github.com/keiyoushi/extensions-source/blob/main/core/src/main/kotlin/keiyoushi/utils/Json.kt
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.okio.decodeFromBufferedSource
+import kotlinx.serialization.serializer
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -19,7 +20,9 @@ inline fun <reified T> String.parseAs(json: Json = source.json): T = json.decode
  * Parses the response body into an object of type [T].
  */
 context(source: Source)
-inline fun <reified T> Response.parseAs(json: Json = source.json): T = use { json.decodeFromStream(body.byteStream()) }
+inline fun <reified T> Response.parseAs(json: Json = source.json): T = use {
+    json.decodeFromBufferedSource(serializer(), it.body.source())
+}
 
 /**
  * Serializes the object to a JSON string.
