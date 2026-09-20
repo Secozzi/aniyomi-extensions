@@ -1,5 +1,6 @@
-#-dontobfuscate
-#-dontoptimize
+-dontobfuscate
+-dontoptimize
+-dontshrink
 
 ## Partially based on https://android.googlesource.com/platform/tools/base/+/refs/heads/mirror-goog-studio-main/build-system/gradle-core/src/main/resources/com/android/build/gradle/proguard-common.txt
 
@@ -19,6 +20,11 @@
 }
 
 ## Below are some of the custom rules for this repo
+
+# Commons-text stuff
+-dontwarn java.lang.invoke.MethodHandleProxies
+-dontwarn javax.script.ScriptEngine
+-dontwarn javax.script.ScriptEngineManager
 
 # Injekt — generic type tokens are captured via subclasses of FullTypeReference and
 # resolved with reflection at runtime, so the Signature attribute is needed.

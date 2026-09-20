@@ -211,6 +211,7 @@ fun format(values: Map<String, Any>, input: String): String {
                 }
             }
 
+            null -> throw IllegalArgumentException("Invalid key: $valueKey")
             else -> throw IllegalStateException("Unsupported value: ${value!!::class.java}")
         }
 

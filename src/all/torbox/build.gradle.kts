@@ -6,7 +6,7 @@ plugins {
 
 extension {
     name = "Torbox"
-    versionCode = 1
+    versionCode = 2
     versionId = 2
     contentWarning = ContentWarning.SAFE
 }
