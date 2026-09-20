@@ -18,7 +18,7 @@ spotless-gradle = { group = "com.diffplug.spotless", name = "spotless-plugin-gra
 ktlint-bom = { module = "com.pinterest.ktlint:ktlint-bom", version.ref = "ktlint" }
 tapmoc-gradle = { module = "com.gradleup.tapmoc:tapmoc-gradle-plugin", version.ref = "tapmoc" }
 
-aniyomi-lib = { module = "com.github.aniyomiorg:extensions-lib", version = "v16" }
+aniyomi-lib = { module = "com.github.aniyomiorg:extensions-lib", version = "v17" }
 
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.ref = "kotlin" }
 kotlin-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
