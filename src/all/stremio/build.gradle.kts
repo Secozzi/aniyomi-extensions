@@ -6,7 +6,7 @@ plugins {
 
 extension {
     name = "Stremio"
-    versionCode = 33
+    versionCode = 1
     contentWarning = ContentWarning.MIXED
     torrent = true
 }
