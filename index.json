@@ -11,12 +11,12 @@
         "name": "Jellyfin",
         "packageName": "eu.kanade.tachiyomi.animeextension.all.jellyfin",
         "resources": {
-          "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/1b16fb2/aniyomi-all.jellyfin-v17.1-release.apk",
+          "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/7717051/aniyomi-all.jellyfin-v17.2-release.apk",
           "iconUrl": "https://cdn.jsdelivr.net/gh/secozzi/aniyomi-extensions@master/src/all/jellyfin/res/mipmap-xhdpi/ic_launcher.png"
         },
         "extensionLib": "17",
-        "versionCode": "17001",
-        "versionName": "17.1",
+        "versionCode": "17002",
+        "versionName": "17.2",
         "contentWarning": "CONTENT_WARNING_SAFE",
         "sources": [
           {
@@ -40,12 +40,12 @@
         "name": "Stremio",
         "packageName": "eu.kanade.tachiyomi.animeextension.all.stremio",
         "resources": {
-          "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/1b16fb2/aniyomi-all.stremio-v17.1-release.apk",
+          "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/7717051/aniyomi-all.stremio-v17.2-release.apk",
           "iconUrl": "https://cdn.jsdelivr.net/gh/secozzi/aniyomi-extensions@master/src/all/stremio/res/mipmap-xhdpi/ic_launcher.png"
         },
         "extensionLib": "17",
-        "versionCode": "17001",
-        "versionName": "17.1",
+        "versionCode": "17002",
+        "versionName": "17.2",
         "contentWarning": "CONTENT_WARNING_MIXED",
         "isTorrent": true,
         "sources": [
@@ -60,12 +60,12 @@
         "name": "Torbox",
         "packageName": "eu.kanade.tachiyomi.animeextension.all.torbox",
         "resources": {
-          "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/1b16fb2/aniyomi-all.torbox-v17.1-release.apk",
+          "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/7717051/aniyomi-all.torbox-v17.2-release.apk",
           "iconUrl": "https://cdn.jsdelivr.net/gh/secozzi/aniyomi-extensions@master/src/all/torbox/res/mipmap-xhdpi/ic_launcher.png"
         },
         "extensionLib": "17",
-        "versionCode": "17001",
-        "versionName": "17.1",
+        "versionCode": "17002",
+        "versionName": "17.2",
         "contentWarning": "CONTENT_WARNING_SAFE",
         "sources": [
           {
