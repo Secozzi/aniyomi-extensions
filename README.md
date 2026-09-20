@@ -7,14 +7,14 @@ This repository contains the available extension catalogues for the [Aniyomi](ht
 
 ## Automatic installation
 
-[![Install](https://img.shields.io/badge/Click%20here%20to%20install%20repo-gray?style=flat&labelColor=red)](https://intradeus.github.io/http-protocol-redirector/?r=aniyomi://add-repo?url=https://raw.githubusercontent.com/Secozzi/aniyomi-extensions/refs/heads/repo/index.min.json)
+[![Install](https://img.shields.io/badge/Click%20here%20to%20install%20repo-gray?style=flat&labelColor=red)](https://intradeus.github.io/http-protocol-redirector/?r=aniyomi://extension-store?url=https%3A%2F%2Fgithub.com%2FSecozzi%2Faniyomi-extensions%2Fraw%2Frepo%2Findex.pb)
 
 ## Manual installation
 
-Add the following link under **Settings > Browse > Anime extension repos**
+Add the following link under **Settings > Browse > Extension stores**
 
 ```
-https://raw.githubusercontent.com/Secozzi/aniyomi-extensions/refs/heads/repo/index.min.json
+https://github.com/Secozzi/aniyomi-extensions/raw/repo/index.pb
 ```
 
 # Usage
