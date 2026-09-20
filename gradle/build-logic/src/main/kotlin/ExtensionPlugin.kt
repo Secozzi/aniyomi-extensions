@@ -104,6 +104,10 @@ class ExtensionPlugin : Plugin<Project> {
         val versionNameProvider = versionCodeProvider.map { "$extensionLib.$it" }
         val torrentProvider = extension.torrent.orElse(false)
 
+        val androidVersionCodeProvider = versionCodeProvider.map { versionCode ->
+            extensionLib.toInt().times(1000) + versionCode
+        }
+
         val manifestTask = tasks.register<GenerateManifestTask>("generateExtensionManifest") {
             this.extensionName.set(extension.name)
             this.contentWarning.set(extension.contentWarning)
@@ -122,7 +126,7 @@ class ExtensionPlugin : Plugin<Project> {
                 variant.sources.manifests.addGeneratedManifestFile(manifestTask) { it.outputFile }
 
                 variant.outputs.forEach { output ->
-                    output.versionCode.set(versionCodeProvider)
+                    output.versionCode.set(androidVersionCodeProvider)
                     output.versionName.set(versionNameProvider)
                 }
             }
@@ -161,7 +165,7 @@ class ExtensionPlugin : Plugin<Project> {
                 module = dirSuffix,
                 packageName = packageName,
                 name = extName,
-                versionCode = versionCodeProvider.get(),
+                versionCode = androidVersionCodeProvider.get(),
                 versionName = "$extensionLib.${versionCodeProvider.get()}",
                 extensionLib = extensionLib,
                 // Proto secozzi.gradle.api.ContentWarning: UNSPECIFIED=0, SAFE=1, MIXED=2, NSFW=3 (enum ordinal + 1).
