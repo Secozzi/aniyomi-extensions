@@ -14,9 +14,9 @@
           "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/2e93c57/aniyomi-all.jellyfin-v17.1-release.apk",
           "iconUrl": "https://cdn.jsdelivr.net/gh/secozzi/aniyomi-extensions@master/src/all/jellyfin/res/mipmap-xhdpi/ic_launcher.png"
         },
-        "extensionLib": "17",
-        "versionCode": "17001",
-        "versionName": "17.1",
+        "extensionLib": "16",
+        "versionCode": "1",
+        "versionName": "16.1",
         "contentWarning": "CONTENT_WARNING_SAFE",
         "sources": [
           {
@@ -43,9 +43,9 @@
           "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/2e93c57/aniyomi-all.stremio-v17.1-release.apk",
           "iconUrl": "https://cdn.jsdelivr.net/gh/secozzi/aniyomi-extensions@master/src/all/stremio/res/mipmap-xhdpi/ic_launcher.png"
         },
-        "extensionLib": "17",
-        "versionCode": "17001",
-        "versionName": "17.1",
+        "extensionLib": "16",
+        "versionCode": "1",
+        "versionName": "16.1",
         "contentWarning": "CONTENT_WARNING_MIXED",
         "isTorrent": true,
         "sources": [
@@ -63,9 +63,9 @@
           "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/2e93c57/aniyomi-all.torbox-v17.1-release.apk",
           "iconUrl": "https://cdn.jsdelivr.net/gh/secozzi/aniyomi-extensions@master/src/all/torbox/res/mipmap-xhdpi/ic_launcher.png"
         },
-        "extensionLib": "17",
-        "versionCode": "17001",
-        "versionName": "17.1",
+        "extensionLib": "16",
+        "versionCode": "1",
+        "versionName": "16.1",
         "contentWarning": "CONTENT_WARNING_SAFE",
         "sources": [
           {
