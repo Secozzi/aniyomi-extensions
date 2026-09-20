@@ -7,7 +7,8 @@ import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import extensions.utils.formatBytes
 import kotlinx.serialization.Serializable
-import okhttp3.HttpUrl.Companion.toHttpUrl
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -67,24 +68,20 @@ data class ItemDto(
     // =============================== Anime ================================
 
     fun toSAnime(baseUrl: String, userId: String, concatenateNames: Boolean): SAnime = SAnime.create().apply {
-        val typeMap = mapOf(
-            ItemType.Season to "season,$seriesId",
-            ItemType.Movie to "movie",
-            ItemType.BoxSet to "boxSet",
-            ItemType.Series to "series",
-        )
         fetch_type = when (type) {
             ItemType.BoxSet, ItemType.Series -> FetchType.Seasons
             ItemType.Movie, ItemType.Season -> FetchType.Episodes
             else -> FetchType.Episodes
         }
-        url = baseUrl.toHttpUrl().newBuilder().apply {
-            addPathSegment("Users")
-            addPathSegment(userId)
-            addPathSegment("Items")
-            addPathSegment(id)
-            fragment(typeMap[type])
-        }.build().toString()
+        url = id
+        memo = buildJsonObject {
+            put("userId", userId)
+            put("type", type)
+            put("baseUrl", baseUrl)
+            if (type == ItemType.Season) {
+                put("seriesId", seriesId)
+            }
+        }
         thumbnail_url = imageTags.primary?.getImageUrl(baseUrl, id)
         background_url = when {
             backdropImageTags?.firstOrNull() != null -> {
@@ -195,7 +192,11 @@ data class ItemDto(
             .removeSuffix("-")
             .removePrefix("-")
             .trim()
-        url = "$baseUrl/Users/$userId/Items/$id"
+        url = id
+        memo = buildJsonObject {
+            put("baseUrl", baseUrl)
+            put("userId", userId)
+        }
         scanlator = extraInfo.joinToString(" • ")
         summary = overview?.let(::convertHtml)
         preview_url = imageTags.primary?.getImageUrl(baseUrl, id)

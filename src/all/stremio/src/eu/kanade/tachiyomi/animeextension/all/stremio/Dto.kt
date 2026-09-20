@@ -19,6 +19,8 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonTransformingSerializer
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.Headers.Companion.toHeaders
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.apache.commons.text.StringSubstitutor
@@ -49,11 +51,9 @@ data class MetaResultDto(
 class ObjectToListSerializer<T : Any>(
     tSerializer: KSerializer<T>,
 ) : JsonTransformingSerializer<List<T>>(ListSerializer(tSerializer)) {
-    override fun transformDeserialize(element: JsonElement): JsonElement {
-        return when (element) {
-            JsonNull, is JsonArray -> element
-            is JsonPrimitive, is JsonObject -> JsonArray(listOf(element))
-        }
+    override fun transformDeserialize(element: JsonElement): JsonElement = when (element) {
+        JsonNull, is JsonArray -> element
+        is JsonPrimitive, is JsonObject -> JsonArray(listOf(element))
     }
 }
 
@@ -136,9 +136,7 @@ data class LibraryItemDto(
         thumbnail_url = poster
     }
 
-    fun watched(): Boolean {
-        return state.timesWatched > 0
-    }
+    fun watched(): Boolean = state.timesWatched > 0
 }
 
 @Serializable
@@ -213,8 +211,8 @@ data class StreamDto(
     val behaviorHints: BehaviorHintDto? = null,
 ) {
     context(source: Source)
-    fun toVideo(serverUrl: String?, hosterData: String): Video? {
-        val (type, id) = hosterData.split("-", limit = 2)
+    fun toVideo(serverUrl: String?, episodeUrl: String): Video? {
+        val (type, id) = episodeUrl.split("-", limit = 2)
         val videoData = VideoData(
             type = type,
             id = id,
@@ -237,7 +235,9 @@ data class StreamDto(
                 videoTitle = videoName,
                 videoUrl = url,
                 headers = headers,
-                internalData = videoData.toJsonString(),
+                memo = buildJsonObject {
+                    put("videoData", videoData.toJsonString())
+                },
             )
         }
 
@@ -268,7 +268,9 @@ data class StreamDto(
             return Video(
                 videoTitle = videoName,
                 videoUrl = url,
-                internalData = videoData.toJsonString(),
+                memo = buildJsonObject {
+                    put("videoData", videoData.toJsonString())
+                },
             )
         }
 

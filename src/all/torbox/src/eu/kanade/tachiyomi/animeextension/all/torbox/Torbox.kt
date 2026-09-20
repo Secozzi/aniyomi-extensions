@@ -10,15 +10,16 @@ import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.Hoster.Companion.toHosterList
 import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.animesource.model.SAnimeEpisodeUpdate
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
-import eu.kanade.tachiyomi.network.get
 import extensions.utils.Source
 import extensions.utils.addEditTextPreference
 import extensions.utils.addSetPreference
 import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
 import extensions.utils.formatBytes
+import extensions.utils.get
 import extensions.utils.parseAs
 import extensions.utils.toJsonString
 import kotlinx.coroutines.async
@@ -28,7 +29,9 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okio.IOException
 
 @Suppress("unused")
-class Torbox : Source(), UnmeteredSource {
+class Torbox :
+    Source(),
+    UnmeteredSource {
 
     override val baseUrl = "https://api.torbox.app"
 
@@ -174,19 +177,18 @@ class Torbox : Source(), UnmeteredSource {
         name: String,
         values: List<CheckboxFilter>,
     ) : AnimeFilter.Group<CheckboxFilter>(name, values) {
-        fun getSelection(): List<String> {
-            return state.filter { it.state }.map { it.id }
-        }
+        fun getSelection(): List<String> = state.filter { it.state }.map { it.id }
     }
 
-    class TypeFilter : CheckboxListFilter(
-        "Types",
-        listOf(
-            CheckboxFilter("Torrents", TORRENT),
-            CheckboxFilter("Web Downloads", WEBDL),
-            CheckboxFilter("Usenet Downloads", USENET),
-        ),
-    )
+    class TypeFilter :
+        CheckboxListFilter(
+            "Types",
+            listOf(
+                CheckboxFilter("Torrents", TORRENT),
+                CheckboxFilter("Web Downloads", WEBDL),
+                CheckboxFilter("Usenet Downloads", USENET),
+            ),
+        )
 
     class SortFilter(
         sortType: SortType = SortType.Default,
@@ -196,9 +198,7 @@ class Torbox : Source(), UnmeteredSource {
         SortType.entries.map { it.displayName }.toTypedArray(),
         Selection(SortType.entries.indexOfFirst { it == sortType }, ascending),
     ) {
-        fun getSelection(): Pair<SortType, Boolean> {
-            return SortType.entries[state!!.index] to state!!.ascending
-        }
+        fun getSelection(): Pair<SortType, Boolean> = SortType.entries[state!!.index] to state!!.ascending
     }
 
     enum class SortType(val displayName: String) {
@@ -215,29 +215,25 @@ class Torbox : Source(), UnmeteredSource {
         ETA("ETA"),
     }
 
-    override fun getFilterList(): AnimeFilterList {
-        return AnimeFilterList(
-            TypeFilter(),
-            SortFilter(),
-        )
-    }
+    override fun getFilterList(): AnimeFilterList = AnimeFilterList(
+        TypeFilter(),
+        SortFilter(),
+    )
 
-    // =========================== Anime Details ============================
+    // =========================== Anime Updates ============================
 
-    override suspend fun getAnimeDetails(anime: SAnime): SAnime {
-        val info = anime.url.parseAs<InfoDetailsDto>()
-        return getInfo(info.type, info.id).toSAnime(preferences.trimTitleInfo)
-    }
+    override suspend fun getAnimeEpisodeUpdate(
+        anime: SAnime,
+        episodes: List<SEpisode>,
+        fetchDetails: Boolean,
+        fetchEpisodes: Boolean,
+    ): SAnimeEpisodeUpdate {
+        val infoDto = anime.url.parseAs<InfoDetailsDto>()
+        val info = getInfo(infoDto.type, infoDto.id)
 
-    // ============================== Episodes ==============================
-
-    override suspend fun getSeasonList(anime: SAnime) = throw UnsupportedOperationException()
-
-    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
-        val info = anime.url.parseAs<InfoDetailsDto>()
-        val files = getInfo(info.type, info.id).files
-
-        return files.reversed()
+        val anime = info.toSAnime(preferences.trimTitleInfo)
+        val episodes = info.files
+            .reversed()
             .filter { if (preferences.filterVideos) it.mimetype.startsWith("video", true) else true }
             .map {
                 val extraInfo = buildList(2) {
@@ -259,6 +255,8 @@ class Torbox : Source(), UnmeteredSource {
                     scanlator = extraInfo.joinToString(" • ")
                 }
             }
+
+        return SAnimeEpisodeUpdate(anime, episodes)
     }
 
     // ============================ Video Links =============================

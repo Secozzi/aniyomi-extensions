@@ -5,12 +5,12 @@ import eu.kanade.tachiyomi.animeextension.all.stremio.Stremio
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.AddonResultDto
 import eu.kanade.tachiyomi.animeextension.all.stremio.addon.dto.ManifestDto
-import eu.kanade.tachiyomi.network.get
-import eu.kanade.tachiyomi.network.post
-import eu.kanade.tachiyomi.util.parallelMapNotNull
 import extensions.utils.PreferenceDelegate
 import extensions.utils.Source
+import extensions.utils.get
+import extensions.utils.parallelMapNotNull
 import extensions.utils.parseAs
+import extensions.utils.post
 import extensions.utils.toRequestBody
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -72,16 +72,14 @@ class AddonManager(
     }
 
     context(source: Source)
-    private suspend fun getFromUser(authKey: String): List<AddonDto> {
-        return with(source) {
-            val body = buildJsonObject {
-                put("authKey", authKey)
-                put("type", "AddonCollectionGet")
-                put("update", true)
-            }.toRequestBody()
+    private suspend fun getFromUser(authKey: String): List<AddonDto> = with(source) {
+        val body = buildJsonObject {
+            put("authKey", authKey)
+            put("type", "AddonCollectionGet")
+            put("update", true)
+        }.toRequestBody()
 
-            source.client.post("${Stremio.API_URL}/api/addonCollectionGet", body = body)
-                .parseAs<ResultDto<AddonResultDto>>().result.addons
-        }
+        source.client.post("${Stremio.API_URL}/api/addonCollectionGet", body = body)
+            .parseAs<ResultDto<AddonResultDto>>().result.addons
     }
 }

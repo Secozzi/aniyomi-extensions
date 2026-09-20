@@ -22,26 +22,24 @@ jobs:
 
     steps:
       - name: Checkout master branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          ref: master
+          persist-credentials: false
 
-      - name: Set up java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: 17
           distribution: temurin
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: true
 
       - name: Prepare signing key
         run: |
           echo ${{ secrets.SIGNING_KEY }} | base64 -d > signingkey.jks
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
 
       - name: Check code format
         run: ./gradlew spotlessCheck
@@ -54,55 +52,67 @@ jobs:
         run: ./gradlew -p src assembleRelease
 
       - name: Upload APKs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: "github.repository == 'Secozzi/aniyomi-extensions'"
         with:
           name: "individual-apks"
-          path: "**/*.apk"
+          path: |
+            **/build/outputs/apk/release/*.apk
+            **/build/source-info.json
           retention-days: 1
 
       - name: Clean up CI files
+        if: always()
         run: rm signingkey.jks
 
   publish_repo:
     name: Publish repo
     needs:
       - build
-    if: "github.repository == 'Secozzi/aniyomi-extensions'"
+    if: >-
+      always() &&
+      github.repository == 'Secozzi/aniyomi-extensions' &&
+      needs.build.result != 'failure' &&
+      needs.build.result != 'cancelled'
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - name: Download APK artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.build.result == 'success'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: ~/apk-artifacts
 
-      - name: Set up JDK
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          java-version: 17
-          distribution: temurin
-
       - name: Checkout master branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: master
           path: master
 
-      - name: Create repo artifacts
-        run: |
-          cd master
-          python ./.github/scripts/move-apks.py
-          python ./.github/scripts/create-repo.py
-
       - name: Checkout repo branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: Secozzi/aniyomi-extensions
+          token: ${{ secrets.GH_PAT }}
           ref: repo
           path: repo
-          
-      - name: Deploy repo
+
+      - name: Publish and deploy repo
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           cd repo
-          chmod +x ../master/.github/scripts/commit-repo.sh
-          ../master/.github/scripts/commit-repo.sh
+          pip install protobuf
+          python -u ../master/.github/scripts/publish-repo.py "$GITHUB_SHA"
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+          git status
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "Update extensions repo"
+            gh auth setup-git
+            git push
+            curl https://purge.jsdelivr.net/gh/Secozzi/aniyomi-extensions@repo/index.json
+            curl https://purge.jsdelivr.net/gh/Secozzi/aniyomi-extensions@repo/index.pb
+          else
+            echo "No changes to commit"
+          fi

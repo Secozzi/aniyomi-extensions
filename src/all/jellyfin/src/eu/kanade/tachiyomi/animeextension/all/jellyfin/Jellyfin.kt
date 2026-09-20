@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.LoginDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.MediaLibraryDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.PlaybackInfoDto
 import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.SessionDto
+import eu.kanade.tachiyomi.animeextension.all.jellyfin.dto.getType
 import eu.kanade.tachiyomi.animesource.UnmeteredSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
@@ -23,12 +24,12 @@ import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.Hoster.Companion.toHosterList
 import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.animesource.model.SAnimeEpisodeUpdate
+import eu.kanade.tachiyomi.animesource.model.SAnimeSeasonUpdate
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.HttpException
-import eu.kanade.tachiyomi.network.get
-import eu.kanade.tachiyomi.network.post
 import extensions.utils.LazyMutable
 import extensions.utils.Source
 import extensions.utils.addEditTextPreference
@@ -37,8 +38,11 @@ import extensions.utils.addSetPreference
 import extensions.utils.addSwitchPreference
 import extensions.utils.delegate
 import extensions.utils.formatBytes
+import extensions.utils.get
 import extensions.utils.getListPreference
+import extensions.utils.getString
 import extensions.utils.parseAs
+import extensions.utils.post
 import extensions.utils.toJsonBody
 import extensions.utils.toJsonString
 import extensions.utils.toRequestBody
@@ -46,9 +50,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Dns
@@ -59,7 +66,9 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.IOException
 import java.security.MessageDigest
 
-class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
+class Jellyfin(private val suffix: String) :
+    Source(),
+    UnmeteredSource {
     override val json: Json by lazy {
         Json {
             isLenient = false
@@ -80,7 +89,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
     override val supportsLatest = true
 
-    override val versionId = 2
+    override val versionId = 3
 
     override val id by lazy {
         val key = "jellyfin ($suffix)/all/$versionId"
@@ -91,9 +100,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     override val client = network.client.newBuilder()
         .dns(Dns.SYSTEM)
         .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .addHeader("Accept", "application/json, application/octet-stream;q=0.9, */*;q=0.8")
-                .build()
+            val request = chain.request()
 
             if (request.url.encodedPath.endsWith("AuthenticateByName")) {
                 return@addInterceptor chain.proceed(request)
@@ -111,6 +118,9 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
             chain.proceed(authRequest)
         }
         .build()
+
+    override fun headersBuilder(): Headers.Builder = super.headersBuilder()
+        .add("Accept", "application/json, application/octet-stream;q=0.9, */*;q=0.8")
 
     // ============================== Popular ===============================
 
@@ -206,7 +216,8 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         val queryParam: String,
         val querySeparator: String = ",",
         val transform: (T) -> String = { it.toString() },
-    ) : AnimeFilter.Group<CheckboxFilter<T>>(name, values), UrlFilter {
+    ) : AnimeFilter.Group<CheckboxFilter<T>>(name, values),
+        UrlFilter {
         override fun addToUrl(url: HttpUrl.Builder) {
             val selected = state.filter { it.state }
 
@@ -219,17 +230,18 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         }
     }
 
-    class TypeFilter(selected: List<ItemType>) : CheckboxListFilter<ItemType>(
-        "Select type(s)",
-        listOf(
-            CheckboxFilter("Movies", ItemType.Movie, ItemType.Movie in selected),
-            CheckboxFilter("Series", ItemType.Series, ItemType.Series in selected),
-            CheckboxFilter("Seasons", ItemType.Season, ItemType.Season in selected),
-            CheckboxFilter("Collections", ItemType.BoxSet, ItemType.BoxSet in selected),
-        ),
-        "IncludeItemTypes",
-        transform = { it.name },
-    )
+    class TypeFilter(selected: List<ItemType>) :
+        CheckboxListFilter<ItemType>(
+            "Select type(s)",
+            listOf(
+                CheckboxFilter("Movies", ItemType.Movie, ItemType.Movie in selected),
+                CheckboxFilter("Series", ItemType.Series, ItemType.Series in selected),
+                CheckboxFilter("Seasons", ItemType.Season, ItemType.Season in selected),
+                CheckboxFilter("Collections", ItemType.BoxSet, ItemType.BoxSet in selected),
+            ),
+            "IncludeItemTypes",
+            transform = { it.name },
+        )
 
     class SortFilter :
         AnimeFilter.Sort(
@@ -260,38 +272,41 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         }
     }
 
-    class FilterFilter : CheckboxListFilter<String>(
-        "Filters",
-        listOf(
-            CheckboxFilter("Played", "IsPlayed"),
-            CheckboxFilter("Unplayed", "IsUnPlayed"),
-            CheckboxFilter("Resumable", "IsResumable"),
-            CheckboxFilter("Favorites", "IsFavorite"),
-        ),
-        "Filters",
-    )
+    class FilterFilter :
+        CheckboxListFilter<String>(
+            "Filters",
+            listOf(
+                CheckboxFilter("Played", "IsPlayed"),
+                CheckboxFilter("Unplayed", "IsUnPlayed"),
+                CheckboxFilter("Resumable", "IsResumable"),
+                CheckboxFilter("Favorites", "IsFavorite"),
+            ),
+            "Filters",
+        )
 
-    class StatusFilter : CheckboxListFilter<String>(
-        "Status",
-        listOf(
-            CheckboxFilter("Continuing", "Continuing"),
-            CheckboxFilter("Ended", "Ended"),
-            CheckboxFilter("Not yet released", "Unreleased"),
-        ),
-        "SeriesStatus",
-    )
+    class StatusFilter :
+        CheckboxListFilter<String>(
+            "Status",
+            listOf(
+                CheckboxFilter("Continuing", "Continuing"),
+                CheckboxFilter("Ended", "Ended"),
+                CheckboxFilter("Not yet released", "Unreleased"),
+            ),
+            "SeriesStatus",
+        )
 
-    class FeaturesFilter : CheckboxListFilter<String>(
-        "Features",
-        listOf(
-            CheckboxFilter("Subtitles", "HasSubtitles"),
-            CheckboxFilter("Trailer", "HasTrailer"),
-            CheckboxFilter("Special Features", "HasSpecialFeature"),
-            CheckboxFilter("Theme song", "HasThemeSong"),
-            CheckboxFilter("Theme video", "HasThemeVideo"),
-        ),
-        "unused",
-    ) {
+    class FeaturesFilter :
+        CheckboxListFilter<String>(
+            "Features",
+            listOf(
+                CheckboxFilter("Subtitles", "HasSubtitles"),
+                CheckboxFilter("Trailer", "HasTrailer"),
+                CheckboxFilter("Special Features", "HasSpecialFeature"),
+                CheckboxFilter("Theme song", "HasThemeSong"),
+                CheckboxFilter("Theme video", "HasThemeVideo"),
+            ),
+            "unused",
+        ) {
         override fun addToUrl(url: HttpUrl.Builder) {
             state.filter { it.state }.forEach {
                 url.addQueryParameter(it.id, "true")
@@ -299,32 +314,36 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         }
     }
 
-    class GenreFilter(genres: List<String>) : CheckboxListFilter<String>(
-        "Genres",
-        genres.map { CheckboxFilter(it, it) },
-        "Genres",
-        querySeparator = "|",
-    )
+    class GenreFilter(genres: List<String>) :
+        CheckboxListFilter<String>(
+            "Genres",
+            genres.map { CheckboxFilter(it, it) },
+            "Genres",
+            querySeparator = "|",
+        )
 
-    class RatingFilter(ratings: List<String>) : CheckboxListFilter<String>(
-        "Parental Ratings",
-        ratings.map { CheckboxFilter(it, it) },
-        "OfficialRatings",
-        querySeparator = "|",
-    )
+    class RatingFilter(ratings: List<String>) :
+        CheckboxListFilter<String>(
+            "Parental Ratings",
+            ratings.map { CheckboxFilter(it, it) },
+            "OfficialRatings",
+            querySeparator = "|",
+        )
 
-    class TagFilter(tags: List<String>) : CheckboxListFilter<String>(
-        "Tags",
-        tags.map { CheckboxFilter(it, it) },
-        "Tags",
-        querySeparator = "|",
-    )
+    class TagFilter(tags: List<String>) :
+        CheckboxListFilter<String>(
+            "Tags",
+            tags.map { CheckboxFilter(it, it) },
+            "Tags",
+            querySeparator = "|",
+        )
 
-    class YearFilter(years: List<Int>) : CheckboxListFilter<Int>(
-        "Years",
-        years.map { CheckboxFilter(it.toString(), it) },
-        "Years",
-    )
+    class YearFilter(years: List<Int>) :
+        CheckboxListFilter<Int>(
+            "Years",
+            years.map { CheckboxFilter(it.toString(), it) },
+            "Years",
+        )
 
     private var itemTypes by LazyMutable {
         if (preferences.saveTypes) {
@@ -370,7 +389,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     override fun getFilterList(): AnimeFilterList {
         CoroutineScope(Dispatchers.IO).launch { getFilters() }
 
-        val filters = buildList<AnimeFilter<*>> {
+        val filters = buildList {
             add(AnimeFilter.Header("Note: search ignores all filters except selected type(s)"))
             add(TypeFilter(itemTypes))
             add(AnimeFilter.Separator())
@@ -393,10 +412,47 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         return AnimeFilterList(filters)
     }
 
-    // =========================== Anime Details ============================
+    // =========================== Anime Updates ============================
 
-    override suspend fun getAnimeDetails(anime: SAnime): SAnime {
-        val data = client.get(anime.url).parseAs<ItemDto>()
+    override suspend fun getAnimeEpisodeUpdate(
+        anime: SAnime,
+        episodes: List<SEpisode>,
+        fetchDetails: Boolean,
+        fetchEpisodes: Boolean,
+    ): SAnimeEpisodeUpdate {
+        val (anime, episodes) = coroutineScope {
+            val animeD = async { if (fetchDetails) animeDetails(anime) else anime }
+            val episodesD = async { if (fetchEpisodes) episodeList(anime) else episodes }
+            animeD.await() to episodesD.await()
+        }
+
+        return SAnimeEpisodeUpdate(anime, episodes)
+    }
+
+    override suspend fun getAnimeSeasonUpdate(
+        anime: SAnime,
+        seasons: List<SAnime>,
+        fetchDetails: Boolean,
+        fetchSeasons: Boolean,
+    ): SAnimeSeasonUpdate {
+        val (anime, seasons) = coroutineScope {
+            val animeD = async { if (fetchDetails) animeDetails(anime) else anime }
+            val seasonsD = async { if (fetchSeasons) seasonList(anime) else seasons }
+            animeD.await() to seasonsD.await()
+        }
+
+        return SAnimeSeasonUpdate(anime, seasons)
+    }
+
+    private suspend fun animeDetails(anime: SAnime): SAnime {
+        val url = baseUrl.toHttpUrl().newBuilder().apply {
+            addPathSegment("Users")
+            addPathSegment(anime.memo.userId)
+            addPathSegment("Items")
+            addPathSegment(anime.url)
+        }.build()
+
+        val data = client.get(url).parseAs<ItemDto>()
         val infoData = if (preferences.seriesData && data.seriesId != null) {
             val httpUrl = anime.url.toHttpUrl()
             val seriesUrl = httpUrl.newBuilder().apply {
@@ -412,36 +468,35 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         return infoData.toSAnime(baseUrl, preferences.userId, preferences.concatNames)
     }
 
-    // ============================== Episodes ==============================
-
-    override suspend fun getSeasonList(anime: SAnime): List<SAnime> {
-        val httpUrl = anime.url.toHttpUrl()
-        val itemId = httpUrl.pathSegments[3]
-        val fragment = httpUrl.fragment!!
-
-        val url = when {
-            fragment.startsWith("boxSet") -> {
-                httpUrl.newBuilder().apply {
-                    removePathSegment(3)
+    private suspend fun seasonList(anime: SAnime): List<SAnime> {
+        val url = when (anime.memo.type) {
+            ItemType.BoxSet -> {
+                baseUrl.toHttpUrl().newBuilder().apply {
+                    addPathSegment("Users")
+                    addPathSegment(anime.memo.userId)
+                    addPathSegment("Items")
                     addQueryParameter("SortBy", "SortName")
                     addQueryParameter("SortOrder", "Ascending")
                     addQueryParameter("IncludeItemTypes", "Movie,Season,BoxSet,Series")
-                    addQueryParameter("ParentId", itemId)
+                    addQueryParameter("ParentId", anime.url)
                     addQueryParameter("Fields", "DateCreated,OriginalTitle,SortName")
                 }.build()
             }
 
-            fragment.startsWith("series") -> {
-                httpUrl.newBuilder().apply {
-                    encodedPath("/")
+            ItemType.Series -> {
+                baseUrl.toHttpUrl().newBuilder().apply {
                     addPathSegment("Shows")
-                    addPathSegment(itemId)
+                    addPathSegment(anime.url)
                     addPathSegment("Seasons")
                 }.build()
             }
 
             else -> {
-                httpUrl.newBuilder().apply {
+                baseUrl.toHttpUrl().newBuilder().apply {
+                    addPathSegment("Users")
+                    addPathSegment(anime.memo.userId)
+                    addPathSegment("Items")
+                    addPathSegment(anime.url)
                     addQueryParameter("Fields", "DateCreated,OriginalTitle,SortName")
                 }.build()
             }
@@ -452,18 +507,22 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         }
     }
 
-    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
-        val url = anime.url.toHttpUrl()
-        val fragment = url.fragment!!
-        val itemList = if (fragment == "movie") {
+    private suspend fun episodeList(anime: SAnime): List<SEpisode> {
+        val itemList = if (anime.memo.type == ItemType.Movie) {
+            val url = baseUrl.toHttpUrl().newBuilder().apply {
+                addPathSegment("Users")
+                addPathSegment(anime.memo.userId)
+                addPathSegment("Items")
+                addPathSegment(anime.url)
+            }.build()
+
             listOf(client.get(url).parseAs<ItemDto>())
         } else {
-            val episodesUrl = url.newBuilder().apply {
-                encodedPath("/")
+            val episodesUrl = baseUrl.toHttpUrl().newBuilder().apply {
                 addPathSegment("Shows")
-                addPathSegment(fragment.split(",").last())
+                addPathSegment(anime.memo.seriesId)
                 addPathSegment("Episodes")
-                addQueryParameter("seasonId", url.pathSegments.last())
+                addQueryParameter("seasonId", anime.url)
                 addQueryParameter("userId", preferences.userId)
                 addQueryParameter("Fields", "Overview,MediaSources,DateCreated,OriginalTitle,SortName")
             }.build()
@@ -483,12 +542,17 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
     // ============================ Video Links =============================
 
-    override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
-        return getVideoListFromEpisode(episode).toHosterList()
-    }
+    override suspend fun getHosterList(episode: SEpisode): List<Hoster> = getVideoListFromEpisode(episode).toHosterList()
 
     private suspend fun getVideoListFromEpisode(episode: SEpisode): List<Video> {
-        val item = client.get(episode.url).parseAs<ItemDto>()
+        val url = baseUrl.toHttpUrl().newBuilder().apply {
+            addPathSegment("Users")
+            addPathSegment(episode.memo.userId)
+            addPathSegment("Items")
+            addPathSegment(episode.url)
+        }.build()
+
+        val item = client.get(url).parseAs<ItemDto>()
         val mediaSource = item.mediaSources?.firstOrNull() ?: return emptyList()
         val itemId = item.id
 
@@ -607,14 +671,19 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
                     headers = videoHeaders,
                     preferred = it.videoBitrate == preferences.quality.toInt(),
                     subtitleTracks = subtitleList,
-                    internalData = TranscodingInfo(
-                        videoBitrate = it.videoBitrate,
-                        audioBitrate = it.audioBitrate,
-                        mediaId = mediaSource.id,
-                        itemId = itemId,
-                        audioStreamIndex = audioTrackIndex?.toString(),
-                        subtitleStreamIndex = subtitleTrackIndex?.toString(),
-                    ).toJsonString(),
+                    memo = buildJsonObject {
+                        put(
+                            "transcodingInfo",
+                            TranscodingInfo(
+                                videoBitrate = it.videoBitrate,
+                                audioBitrate = it.audioBitrate,
+                                mediaId = mediaSource.id,
+                                itemId = itemId,
+                                audioStreamIndex = audioTrackIndex?.toString(),
+                                subtitleStreamIndex = subtitleTrackIndex?.toString(),
+                            ).toJsonString(),
+                        )
+                    },
                 ),
             )
         }
@@ -671,7 +740,7 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     }
 
     override suspend fun resolveVideo(video: Video): Video? {
-        val transcodingInfo = video.internalData.parseAs<TranscodingInfo>()
+        val transcodingInfo = video.memo.getString("transcodingInfo").parseAs<TranscodingInfo>()
         val sessionData = getSessionData(
             videoBitrate = transcodingInfo.videoBitrate,
             audioBitrate = transcodingInfo.audioBitrate,
@@ -688,11 +757,9 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
         }
     }
 
-    override fun List<Video>.sortVideos(): List<Video> {
-        return sortedWith(
-            compareBy { it.bitrate!! },
-        ).reversed()
-    }
+    override fun List<Video>.sortVideos(): List<Video> = sortedWith(
+        compareBy { it.bitrate!! },
+    ).reversed()
 
     // =============================== Login ================================
 
@@ -706,10 +773,8 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
     // From https://github.com/jellyfin/jellyfin-sdk-kotlin
     private fun Application.getDeviceName(): String {
         // Use name from device settings
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
-            val name = Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
-            if (!name.isNullOrBlank()) return name
-        }
+        val name = Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
+        if (!name.isNullOrBlank()) return name
 
         // Concatenate the name based on manufacturer and model
         val manufacturer = Build.MANUFACTURER
@@ -772,22 +837,27 @@ class Jellyfin(private val suffix: String) : Source(), UnmeteredSource {
 
     // ============================= Utilities ==============================
 
-    private fun getItemsUrl(startIndex: Int): HttpUrl {
-        return baseUrl.toHttpUrl().newBuilder().apply {
-            addPathSegment("Users")
-            addPathSegment(preferences.userId)
-            addPathSegment("Items")
-            addQueryParameter("StartIndex", startIndex.toString())
-            addQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
-            addQueryParameter("Recursive", "true")
-            addQueryParameter("SortBy", "SortName")
-            addQueryParameter("SortOrder", "Ascending")
-            addQueryParameter("IncludeItemTypes", itemTypes.joinToString(",") { it.name })
-            addQueryParameter("ImageTypeLimit", "1")
-            addQueryParameter("ParentId", preferences.selectedLibrary)
-            addQueryParameter("EnableImageTypes", "Primary")
-        }.build()
-    }
+    val JsonObject.userId
+        get() = getString("userId")
+    val JsonObject.type
+        get() = getType("type")
+    val JsonObject.seriesId
+        get() = getString("seriesId")
+
+    private fun getItemsUrl(startIndex: Int): HttpUrl = baseUrl.toHttpUrl().newBuilder().apply {
+        addPathSegment("Users")
+        addPathSegment(preferences.userId)
+        addPathSegment("Items")
+        addQueryParameter("StartIndex", startIndex.toString())
+        addQueryParameter("Limit", SERIES_FETCH_LIMIT.toString())
+        addQueryParameter("Recursive", "true")
+        addQueryParameter("SortBy", "SortName")
+        addQueryParameter("SortOrder", "Ascending")
+        addQueryParameter("IncludeItemTypes", itemTypes.joinToString(",") { it.name })
+        addQueryParameter("ImageTypeLimit", "1")
+        addQueryParameter("ParentId", preferences.selectedLibrary)
+        addQueryParameter("EnableImageTypes", "Primary")
+    }.build()
 
     private fun checkPreferences() {
         if (preferences.selectedLibrary.isBlank()) {

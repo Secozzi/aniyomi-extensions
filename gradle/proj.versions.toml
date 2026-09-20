@@ -1,0 +1,14 @@
+[versions]
+# Used in [/gradle/build-logic/src/main/kotlin/AndroidBasePlugin.kt]
+android-sdk-min = "26"
+android-sdk-compile = "37"
+android-sdk-target = "37"
+java = "11"
+
+# Used in [/gradle/build-logic/src/main/kotlin/ExtensionPlugin.kt]
+ext-lib = "17"
+
+[plugins]
+android-base = { id = "proj.plugins.android.base" }
+extension = { id = "proj.plugins.extension" }
+spotless = { id = "proj.plugins.spotless" }

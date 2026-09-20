@@ -1,29 +1,42 @@
 [versions]
-agp_version = "8.11.1"
-coroutines_version = "1.10.2"
-kotlin_version = "2.2.0"
-serialization_version = "1.9.0"
-spotless = "7.2.1"
-ktlint-core = "1.7.1"
+agp = "9.3.1"
+coroutines = "1.11.0"
+kotlin = "2.4.10"
+ktlint = "1.8.0"
+okhttp = "5.4.0"
+serialization = "1.9.0"
+spotless = "8.9.0"
+tapmoc = "0.4.2"
 
 [libraries]
-gradle-agp = { module = "com.android.tools.build:gradle", version.ref = "agp_version" }
-gradle-kotlin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin_version" }
-gradle-kotlin-serialization = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin_version" }
+gradle-android = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+gradle-kotlin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+gradle-kotlin-serialization = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin" }
+gradle-apksig = { module = "com.android.tools.build:apksig", version.ref = "agp" }
 
 spotless-gradle = { group = "com.diffplug.spotless", name = "spotless-plugin-gradle", version.ref = "spotless" }
-ktlint-core = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint-core" }
+ktlint-bom = { module = "com.pinterest.ktlint:ktlint-bom", version.ref = "ktlint" }
+tapmoc-gradle = { module = "com.gradleup.tapmoc:tapmoc-gradle-plugin", version.ref = "tapmoc" }
 
-aniyomi-lib = { module = "com.github.aniyomiorg:extensions-lib", version = "v16" }
+aniyomi-lib = { module = "com.github.aniyomiorg:extensions-lib", version = "v17" }
 
-kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.ref = "kotlin_version" }
-kotlin-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization_version" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.ref = "kotlin" }
+kotlin-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+kotlin-json-okio = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json-okio", version.ref = "serialization" }
 
-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines_version" }
-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines_version" }
+coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 
 injekt-core = { module = "com.github.mihonapp:injekt", version = "91edab2317" }
-okhttp = { module = "com.squareup.okhttp3:okhttp", version = "5.1.0" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-samWithReceiver = { id = "org.jetbrains.kotlin.plugin.sam.with.receiver", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 
 [bundles]
-common = ["kotlin-stdlib", "injekt-core", "kotlin-json", "okhttp", "aniyomi-lib", "coroutines-core", "coroutines-android"]
+common = ["kotlin-stdlib", "injekt-core", "kotlin-json", "kotlin-json-okio", "okhttp", "aniyomi-lib", "coroutines-core", "coroutines-android"]
