@@ -1,6 +1,7 @@
 {
+  "index_v2": "https://github.com/Secozzi/aniyomi-extensions/raw/repo/index.pb",
   "meta": {
-    "name": "Jellyfin + Stremio",
+    "name": "Jellyfin, Stremio, and Torbox",
     "website": "https://github.com/Secozzi/aniyomi-extensions",
     "signingKeyFingerprint": "480e90b05421e4f92fb789af27760718796e57b87c1a1ad66c55fa1f0a82df3e"
   }
