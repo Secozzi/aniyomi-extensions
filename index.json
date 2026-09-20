@@ -1,76 +1,80 @@
-[
-  {
-    "name": "Aniyomi: Jellyfin",
-    "pkg": "eu.kanade.tachiyomi.animeextension.all.jellyfin",
-    "apk": "aniyomi-all.jellyfin-v16.33.apk",
-    "lang": "all",
-    "code": 33,
-    "version": "16.33",
-    "nsfw": 0,
-    "hasReadme": 0,
-    "hasChangelog": 0,
-    "sources": [
-      {
-        "name": "Jellyfin (1)",
-        "lang": "all",
-        "id": "1100359934660540567",
-        "baseUrl": "",
-        "versionId": 1
-      },
-      {
-        "name": "Jellyfin (2)",
-        "lang": "all",
-        "id": "5716273013801838310",
-        "baseUrl": "",
-        "versionId": 1
-      },
-      {
-        "name": "Jellyfin (3)",
-        "lang": "all",
-        "id": "7066619062139039107",
-        "baseUrl": "",
-        "versionId": 1
-      }
-    ]
+{
+  "name": "Jellyfin, Stremio, and Torbox",
+  "badgeLabel": "SECO",
+  "signingKey": "480e90b05421e4f92fb789af27760718796e57b87c1a1ad66c55fa1f0a82df3e",
+  "contact": {
+    "website": "https://github.com/Secozzi/aniyomi-extensions"
   },
-  {
-    "name": "Aniyomi: Stremio",
-    "pkg": "eu.kanade.tachiyomi.animeextension.all.stremio",
-    "apk": "aniyomi-all.stremio-v16.11.apk",
-    "lang": "all",
-    "code": 11,
-    "version": "16.11",
-    "nsfw": 0,
-    "hasReadme": 0,
-    "hasChangelog": 0,
-    "sources": [
+  "extensionList": {
+    "extensions": [
+      {
+        "name": "Jellyfin",
+        "packageName": "eu.kanade.tachiyomi.animeextension.all.jellyfin",
+        "resources": {
+          "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/2e93c57/aniyomi-all.jellyfin-v17.1-release.apk",
+          "iconUrl": "https://cdn.jsdelivr.net/gh/secozzi/aniyomi-extensions@master/src/all/jellyfin/res/mipmap-xhdpi/ic_launcher.png"
+        },
+        "extensionLib": "17",
+        "versionCode": "17001",
+        "versionName": "17.1",
+        "contentWarning": "CONTENT_WARNING_SAFE",
+        "sources": [
+          {
+            "id": "8925551562887732093",
+            "name": "Jellyfin (1)",
+            "language": "all"
+          },
+          {
+            "id": "7946973714091475038",
+            "name": "Jellyfin (2)",
+            "language": "all"
+          },
+          {
+            "id": "5104944909146078015",
+            "name": "Jellyfin (3)",
+            "language": "all"
+          }
+        ]
+      },
       {
         "name": "Stremio",
-        "lang": "all",
-        "id": "8425771932667600381",
-        "baseUrl": "",
-        "versionId": 1
-      }
-    ]
-  },
-  {
-    "name": "Aniyomi: Torbox",
-    "pkg": "eu.kanade.tachiyomi.animeextension.all.torbox",
-    "apk": "aniyomi-all.torbox-v16.2.apk",
-    "lang": "all",
-    "code": 2,
-    "version": "16.2",
-    "nsfw": 0,
-    "hasReadme": 0,
-    "hasChangelog": 0,
-    "sources": [
+        "packageName": "eu.kanade.tachiyomi.animeextension.all.stremio",
+        "resources": {
+          "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/2e93c57/aniyomi-all.stremio-v17.1-release.apk",
+          "iconUrl": "https://cdn.jsdelivr.net/gh/secozzi/aniyomi-extensions@master/src/all/stremio/res/mipmap-xhdpi/ic_launcher.png"
+        },
+        "extensionLib": "17",
+        "versionCode": "17001",
+        "versionName": "17.1",
+        "contentWarning": "CONTENT_WARNING_MIXED",
+        "isTorrent": true,
+        "sources": [
+          {
+            "id": "8425771932667600381",
+            "name": "Stremio",
+            "language": "all"
+          }
+        ]
+      },
       {
         "name": "Torbox",
-        "lang": "all",
-        "id": "8698648801670924388",
-        "baseUrl": "",
-        "versionId": 2
+        "packageName": "eu.kanade.tachiyomi.animeextension.all.torbox",
+        "resources": {
+          "apkUrl": "https://github.com/Secozzi/aniyomi-extensions/releases/download/2e93c57/aniyomi-all.torbox-v17.1-release.apk",
+          "iconUrl": "https://cdn.jsdelivr.net/gh/secozzi/aniyomi-extensions@master/src/all/torbox/res/mipmap-xhdpi/ic_launcher.png"
+        },
+        "extensionLib": "17",
+        "versionCode": "17001",
+        "versionName": "17.1",
+        "contentWarning": "CONTENT_WARNING_SAFE",
+        "sources": [
+          {
+            "id": "8698648801670924388",
+            "name": "Torbox",
+            "language": "all"
+          }
+        ]
       }
     ]
   }
-]
+}
