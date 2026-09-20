@@ -35,6 +35,7 @@ class ExtensionPlugin : Plugin<Project> {
         }
 
         val extension = extensions.create<AnimeExtension>("extension")
+        val dirSuffix = "${project.parent?.name}.${project.name}"
         val applicationIdSuffix = "${project.parent?.name}.${project.name}"
 
         android {
@@ -128,7 +129,7 @@ class ExtensionPlugin : Plugin<Project> {
         }
 
         base {
-            archivesName.set("aniyomi-$applicationIdSuffix-v$versionNameProvider")
+            archivesName.set(versionNameProvider.map { "aniyomi-$applicationIdSuffix-v$it" })
         }
 
         dependencies {
@@ -157,6 +158,7 @@ class ExtensionPlugin : Plugin<Project> {
                 )
             }
             val extensionInfo = ExtensionMetadata(
+                module = dirSuffix,
                 packageName = packageName,
                 name = extName,
                 versionCode = versionCodeProvider.get(),
